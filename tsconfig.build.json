@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "rootDir": "src",
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "lib": [
+      "es2022"
+    ],
+    "target": "es2022",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}
