@@ -1,19 +1,11 @@
 import type { EntityMetadata, QBFilterQuery } from '@mikro-orm/core';
 import type { EntityRepository, QueryBuilder } from '@mikro-orm/knex';
-import type {
-  AggregateQuery,
-  Filter,
-  Paging,
-  Query,
-  SortField,
-} from '@nestjs-query/core';
+import type { AggregateQuery, Filter, Paging, Query, SortField } from '@nestjs-query/core';
 import { getFilterFields } from '@nestjs-query/core';
+import merge from 'lodash.merge';
 
 import { AggregateBuilder } from './aggregate.builder';
 import { WhereBuilder } from './where.builder';
-
-// Using type assertion for lodash.merge which lacks proper typings
-const merge = require('lodash.merge') as <T, S>(object: T, source: S) => T & S;
 
 /**
  * @internal
@@ -56,10 +48,7 @@ export class FilterQueryBuilder<Entity extends object> {
   ): QueryBuilder<Entity> {
     const alias = this.getEntityAlias();
     const qb = this.createQueryBuilder(alias);
-    const metadata = this.repo
-      .getEntityManager()
-      .getMetadata()
-      .get(this.repo.getEntityName());
+    const metadata = this.repo.getEntityManager().getMetadata().get(this.repo.getEntityName());
     const primaryKey = metadata.primaryKeys[0];
 
     if (Array.isArray(id)) {
@@ -74,10 +63,7 @@ export class FilterQueryBuilder<Entity extends object> {
     return qb;
   }
 
-  aggregate(
-    query: Query<Entity>,
-    aggregate: AggregateQuery<Entity>,
-  ): QueryBuilder<Entity> {
+  aggregate(query: Query<Entity>, aggregate: AggregateQuery<Entity>): QueryBuilder<Entity> {
     const alias = this.getEntityAlias();
     const qb = this.createQueryBuilder(alias);
     this.applyAggregate(qb, aggregate, alias);
@@ -129,11 +115,7 @@ export class FilterQueryBuilder<Entity extends object> {
    * @param filter - the filter.
    * @param _alias - optional alias to use to qualify an identifier (unused in MikroORM)
    */
-  applyFilter<Q extends QueryBuilder<Entity>>(
-    qb: Q,
-    filter?: Filter<Entity>,
-    _alias?: string,
-  ): Q {
+  applyFilter<Q extends QueryBuilder<Entity>>(qb: Q, filter?: Filter<Entity>, _alias?: string): Q {
     if (!filter) {
       return qb;
     }
@@ -260,10 +242,7 @@ export class FilterQueryBuilder<Entity extends object> {
       // Called as (metadata, filter)
       metadata = metadataOrFilter as EntityMetadata<Entity>;
       actualFilter = filter;
-    } else if (
-      'properties' in metadataOrFilter ||
-      'relations' in metadataOrFilter
-    ) {
+    } else if ('properties' in metadataOrFilter || 'relations' in metadataOrFilter) {
       // First arg looks like metadata, but no second arg - treat as empty filter
       metadata = metadataOrFilter as EntityMetadata<Entity>;
       actualFilter = {};
@@ -280,15 +259,10 @@ export class FilterQueryBuilder<Entity extends object> {
       const currFilterValue = actualFilter[curr];
       if ((curr === 'and' || curr === 'or') && currFilterValue) {
         for (const subFilter of currFilterValue as Filter<unknown>[]) {
-          prev = merge(
-            prev,
-            this.getReferencedRelationsRecursiveInternal(metadata, subFilter),
-          );
+          prev = merge(prev, this.getReferencedRelationsRecursiveInternal(metadata, subFilter));
         }
       }
-      const referencedRelation = metadata.relations.find(
-        (r) => r.name === curr,
-      );
+      const referencedRelation = metadata.relations.find((r) => r.name === curr);
       if (!referencedRelation) return prev;
 
       // Get nested relations recursively
@@ -310,22 +284,15 @@ export class FilterQueryBuilder<Entity extends object> {
     filter: Filter<unknown> = {},
   ): NestedRecord {
     const em = this.repo.getEntityManager();
-    const referencedFields = Array.from(
-      new Set(Object.keys(filter) as (keyof Filter<unknown>)[]),
-    );
+    const referencedFields = Array.from(new Set(Object.keys(filter) as (keyof Filter<unknown>)[]));
     return referencedFields.reduce((prev, curr) => {
       const currFilterValue = filter[curr];
       if ((curr === 'and' || curr === 'or') && currFilterValue) {
         for (const subFilter of currFilterValue as Filter<unknown>[]) {
-          prev = merge(
-            prev,
-            this.getReferencedRelationsRecursiveInternal(metadata, subFilter),
-          );
+          prev = merge(prev, this.getReferencedRelationsRecursiveInternal(metadata, subFilter));
         }
       }
-      const referencedRelation = metadata.relations.find(
-        (r) => r.name === curr,
-      );
+      const referencedRelation = metadata.relations.find((r) => r.name === curr);
       if (!referencedRelation) return prev;
 
       // Get nested relations recursively

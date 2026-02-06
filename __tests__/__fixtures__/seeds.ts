@@ -6,9 +6,7 @@ import { TestRelation } from './test-relation.entity';
 import { TestSoftDeleteEntity } from './test-soft-delete.entity';
 import { TestEntity } from './test.entity';
 
-export const TEST_ENTITIES: Partial<TestEntity>[] = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-].map((i) => {
+export const TEST_ENTITIES: Partial<TestEntity>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
   const testEntityPk = `test-entity-${i}`;
   return {
     testEntityPk,
@@ -29,9 +27,7 @@ export const TEST_SOFT_DELETE_ENTITIES: Partial<TestSoftDeleteEntity>[] = [
   };
 });
 
-export const TEST_RELATIONS: Partial<TestRelation>[] = (
-  TEST_ENTITIES as TestEntity[]
-).reduce(
+export const TEST_RELATIONS: Partial<TestRelation>[] = (TEST_ENTITIES as TestEntity[]).reduce(
   (relations, te) => [
     ...relations,
     {
@@ -56,17 +52,15 @@ export const TEST_RELATIONS: Partial<TestRelation>[] = (
   [] as Partial<TestRelation>[],
 );
 
-export const TEST_RELATIONS_OF_RELATION = (
-  TEST_RELATIONS as TestRelation[]
-).map<Partial<RelationOfTestRelationEntity>>((testRelation) => ({
+export const TEST_RELATIONS_OF_RELATION = (TEST_RELATIONS as TestRelation[]).map<
+  Partial<RelationOfTestRelationEntity>
+>((testRelation) => ({
   relationName: `test-relation-of-${testRelation.relationName}`,
   id: `relation-of-test-relation-${testRelation.relationName}`,
   testRelationId: testRelation.testRelationPk,
 })) as Partial<RelationOfTestRelationEntity>[];
 
-export const seed = async (
-  orm: MikroORM = getTestConnection(),
-): Promise<void> => {
+export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> => {
   const em = orm.em.fork();
 
   // Create test entities
@@ -82,9 +76,7 @@ export const seed = async (
   for (const relationData of TEST_RELATIONS) {
     const relation = em.create(TestRelation, relationData as TestRelation);
     // Link the ManyToOne relations to actual entity references
-    const testEntity = testEntities.find(
-      (te) => te.testEntityPk === relationData.testEntityId,
-    );
+    const testEntity = testEntities.find((te) => te.testEntityPk === relationData.testEntityId);
     if (testEntity) {
       relation.testEntity = testEntity;
       relation.testEntityUniDirectional = testEntity;
@@ -96,14 +88,9 @@ export const seed = async (
   // Create relations of test relation and link to test relations
   const relationsOfRelation: RelationOfTestRelationEntity[] = [];
   for (const rorData of TEST_RELATIONS_OF_RELATION) {
-    const ror = em.create(
-      RelationOfTestRelationEntity,
-      rorData as RelationOfTestRelationEntity,
-    );
+    const ror = em.create(RelationOfTestRelationEntity, rorData as RelationOfTestRelationEntity);
     // Link the ManyToOne relation to actual testRelation reference
-    const testRelation = testRelations.find(
-      (tr) => tr.testRelationPk === rorData.testRelationId,
-    );
+    const testRelation = testRelations.find((tr) => tr.testRelationPk === rorData.testRelationId);
     if (testRelation) {
       ror.testRelation = testRelation;
     }
@@ -120,15 +107,11 @@ export const seed = async (
       te.oneTestRelation = oneRelation;
     }
     if (te.numberType % 2 === 0) {
-      const twoRelations = testRelations.filter((tr) =>
-        tr.relationName.endsWith('two'),
-      );
+      const twoRelations = testRelations.filter((tr) => tr.relationName.endsWith('two'));
       te.manyTestRelations.set(twoRelations);
     }
     if (te.numberType % 3 === 0) {
-      const threeRelations = testRelations.filter((tr) =>
-        tr.relationName.endsWith('three'),
-      );
+      const threeRelations = testRelations.filter((tr) => tr.relationName.endsWith('three'));
       te.manyToManyUniDirectional.set(threeRelations);
     }
   }
@@ -136,9 +119,7 @@ export const seed = async (
 
   // Update relation references - link the ManyToOne relation from TestRelation to RelationOfTestRelation
   for (const tr of testRelations) {
-    const ror = relationsOfRelation.find(
-      (r) => r.testRelationId === tr.testRelationPk,
-    );
+    const ror = relationsOfRelation.find((r) => r.testRelationId === tr.testRelationPk);
     if (ror) {
       tr.relationOfTestRelationId = ror.id;
       tr.relationOfTestRelation = ror;
@@ -149,10 +130,7 @@ export const seed = async (
   // Create soft delete entities
   const softDeleteEntities: TestSoftDeleteEntity[] = [];
   for (const entityData of TEST_SOFT_DELETE_ENTITIES) {
-    const entity = em.create(
-      TestSoftDeleteEntity,
-      entityData as TestSoftDeleteEntity,
-    );
+    const entity = em.create(TestSoftDeleteEntity, entityData as TestSoftDeleteEntity);
     softDeleteEntities.push(entity);
   }
   await em.persistAndFlush(softDeleteEntities);

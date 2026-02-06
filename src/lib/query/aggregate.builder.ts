@@ -28,21 +28,14 @@ export class AggregateBuilder<Entity extends object> {
   }
 
   static getAggregateSelects<Entity>(query: AggregateQuery<Entity>): string[] {
-    return [
-      ...this.getAggregateGroupBySelects(query),
-      ...this.getAggregateFuncSelects(query),
-    ];
+    return [...this.getAggregateGroupBySelects(query), ...this.getAggregateFuncSelects(query)];
   }
 
-  private static getAggregateGroupBySelects<Entity>(
-    query: AggregateQuery<Entity>,
-  ): string[] {
+  private static getAggregateGroupBySelects<Entity>(query: AggregateQuery<Entity>): string[] {
     return (query.groupBy ?? []).map((f) => this.getGroupByAlias(f));
   }
 
-  private static getAggregateFuncSelects<Entity>(
-    query: AggregateQuery<Entity>,
-  ): string[] {
+  private static getAggregateFuncSelects<Entity>(query: AggregateQuery<Entity>): string[] {
     const aggs: [AggregateFuncs, (keyof Entity)[] | undefined][] = [
       [AggregateFuncs.COUNT, query.count],
       [AggregateFuncs.SUM, query.sum],
@@ -51,17 +44,12 @@ export class AggregateBuilder<Entity extends object> {
       [AggregateFuncs.MIN, query.min],
     ];
     return aggs.reduce((cols, [func, fields]) => {
-      const aliases = (fields ?? []).map((f) =>
-        this.getAggregateAlias(func, f),
-      );
+      const aliases = (fields ?? []).map((f) => this.getAggregateAlias(func, f));
       return [...cols, ...aliases];
     }, [] as string[]);
   }
 
-  static getAggregateAlias<Entity>(
-    func: AggregateFuncs,
-    field: keyof Entity,
-  ): string {
+  static getAggregateAlias<Entity>(func: AggregateFuncs, field: keyof Entity): string {
     return `${func}_${field as string}`;
   }
 
@@ -73,26 +61,21 @@ export class AggregateBuilder<Entity extends object> {
     rawAggregates: Record<string, unknown>[],
   ): AggregateResponse<Entity>[] {
     return rawAggregates.map((response) => {
-      return Object.keys(response).reduce(
-        (agg: AggregateResponse<Entity>, resultField: string) => {
-          const matchResult = AGG_REGEXP.exec(resultField);
-          if (!matchResult) {
-            throw new Error('Unknown aggregate column encountered.');
-          }
-          const [matchedFunc, matchedFieldName] = matchResult.slice(1);
-          const aggFunc = camelCase(
-            matchedFunc.toLowerCase(),
-          ) as keyof AggregateResponse<Entity>;
-          const fieldName = matchedFieldName as keyof Entity;
-          const aggResult = agg[aggFunc] || {};
-          return {
-            ...agg,
+      return Object.keys(response).reduce((agg: AggregateResponse<Entity>, resultField: string) => {
+        const matchResult = AGG_REGEXP.exec(resultField);
+        if (!matchResult) {
+          throw new Error('Unknown aggregate column encountered.');
+        }
+        const [matchedFunc, matchedFieldName] = matchResult.slice(1);
+        const aggFunc = camelCase(matchedFunc.toLowerCase()) as keyof AggregateResponse<Entity>;
+        const fieldName = matchedFieldName as keyof Entity;
+        const aggResult = agg[aggFunc] || {};
+        return {
+          ...agg,
 
-            [aggFunc]: { ...aggResult, [fieldName]: response[resultField] },
-          };
-        },
-        {},
-      );
+          [aggFunc]: { ...aggResult, [fieldName]: response[resultField] },
+        };
+      }, {});
     });
   }
 
@@ -102,14 +85,8 @@ export class AggregateBuilder<Entity extends object> {
    * @param propertyName - the property name
    * @returns the database column name
    */
-  private getColumnName(
-    metadata: EntityMetadata<Entity>,
-    propertyName: string,
-  ): string {
-    const prop =
-      metadata.properties[
-        propertyName as keyof (typeof metadata)['properties']
-      ];
+  private getColumnName(metadata: EntityMetadata<Entity>, propertyName: string): string {
+    const prop = metadata.properties[propertyName as keyof (typeof metadata)['properties']];
     if (prop && prop.fieldNames && prop.fieldNames.length > 0) {
       return prop.fieldNames[0];
     }
@@ -129,41 +106,15 @@ export class AggregateBuilder<Entity extends object> {
   ): Qb {
     // Get entity metadata for column name resolution via the qb's internal helper
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const metadata: EntityMetadata<Entity> | undefined = (qb as any).mainAlias
-      ?.metadata;
+    const metadata: EntityMetadata<Entity> | undefined = (qb as any).mainAlias?.metadata;
 
     const selects = [
       ...this.createGroupBySelect(aggregate.groupBy, alias, metadata),
-      ...this.createAggSelect(
-        AggregateFuncs.COUNT,
-        aggregate.count,
-        alias,
-        metadata,
-      ),
-      ...this.createAggSelect(
-        AggregateFuncs.SUM,
-        aggregate.sum,
-        alias,
-        metadata,
-      ),
-      ...this.createAggSelect(
-        AggregateFuncs.AVG,
-        aggregate.avg,
-        alias,
-        metadata,
-      ),
-      ...this.createAggSelect(
-        AggregateFuncs.MAX,
-        aggregate.max,
-        alias,
-        metadata,
-      ),
-      ...this.createAggSelect(
-        AggregateFuncs.MIN,
-        aggregate.min,
-        alias,
-        metadata,
-      ),
+      ...this.createAggSelect(AggregateFuncs.COUNT, aggregate.count, alias, metadata),
+      ...this.createAggSelect(AggregateFuncs.SUM, aggregate.sum, alias, metadata),
+      ...this.createAggSelect(AggregateFuncs.AVG, aggregate.avg, alias, metadata),
+      ...this.createAggSelect(AggregateFuncs.MAX, aggregate.max, alias, metadata),
+      ...this.createAggSelect(AggregateFuncs.MIN, aggregate.min, alias, metadata),
     ];
     if (!selects.length) {
       throw new BadRequestException('No aggregate fields found.');
@@ -191,13 +142,8 @@ export class AggregateBuilder<Entity extends object> {
       const columnName = metadata
         ? this.getColumnName(metadata, field as string)
         : (field as string);
-      const col = alias
-        ? `\`${alias}\`.\`${columnName}\``
-        : `\`${columnName}\``;
-      return [
-        `${func}(${col})`,
-        AggregateBuilder.getAggregateAlias(func, field),
-      ];
+      const col = alias ? `\`${alias}\`.\`${columnName}\`` : `\`${columnName}\``;
+      return [`${func}(${col})`, AggregateBuilder.getAggregateAlias(func, field)];
     });
   }
 
@@ -214,9 +160,7 @@ export class AggregateBuilder<Entity extends object> {
       const columnName = metadata
         ? this.getColumnName(metadata, field as string)
         : (field as string);
-      const col = alias
-        ? `\`${alias}\`.\`${columnName}\``
-        : `\`${columnName}\``;
+      const col = alias ? `\`${alias}\`.\`${columnName}\`` : `\`${columnName}\``;
       return [`${col}`, AggregateBuilder.getGroupByAlias(field)];
     });
   }

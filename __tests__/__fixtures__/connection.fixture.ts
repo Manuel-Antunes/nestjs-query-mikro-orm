@@ -41,7 +41,7 @@ export function getTestConnection(): MikroORM<SqliteDriver> {
   return orm;
 }
 
-const tables = [
+const _tables = [
   'test_entity',
   'relation_of_test_relation_entity',
   'test_relation',

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: '../../../node_modules/.vite/libs/database/nest-query-mikro-orm',
+  cacheDir: './node_modules/.vite/nestjs-query-mikro-orm',
   plugins: [],
   esbuild: {
     target: 'es2022',

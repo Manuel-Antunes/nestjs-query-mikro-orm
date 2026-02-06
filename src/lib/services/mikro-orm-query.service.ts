@@ -59,8 +59,7 @@ export class MikroOrmQueryService<Entity extends object>
     opts?: MikroOrmQueryServiceOpts<Entity>,
   ) {
     super();
-    this.filterQueryBuilder =
-      opts?.filterQueryBuilder ?? new FilterQueryBuilder<Entity>(this.repo);
+    this.filterQueryBuilder = opts?.filterQueryBuilder ?? new FilterQueryBuilder<Entity>(this.repo);
     this.useSoftDelete = opts?.useSoftDelete ?? false;
     const serializer = getAssemblerSerializer(this.EntityClass);
     if (!serializer) {
@@ -94,11 +93,7 @@ export class MikroOrmQueryService<Entity extends object>
       AssemblerDeserializer((d: DeepPartial<Entity>) => {
         const entity = this.repo
           .getEntityManager()
-          .create(
-            this.EntityClass,
-            instanceToPlain(d) as RequiredEntityData<Entity>,
-          );
-        console.log('Deserializer created entity:', entity);
+          .create(this.EntityClass, instanceToPlain(d) as RequiredEntityData<Entity>);
         return entity;
       })(this.EntityClass);
     }
@@ -157,10 +152,7 @@ export class MikroOrmQueryService<Entity extends object>
    * ```
    * @param id - The id of the record to find.
    */
-  async findById(
-    id: string | number,
-    opts?: FindByIdOptions<Entity>,
-  ): Promise<Entity | undefined> {
+  async findById(id: string | number, opts?: FindByIdOptions<Entity>): Promise<Entity | undefined> {
     const qb = this.filterQueryBuilder.selectById(id, opts ?? {});
     // Apply entity-level filters (like soft delete) - must be done before executing
     await qb.applyFilters();
@@ -181,15 +173,10 @@ export class MikroOrmQueryService<Entity extends object>
    * ```
    * @param id - The id of the record to find.
    */
-  async getById(
-    id: string | number,
-    opts?: GetByIdOptions<Entity>,
-  ): Promise<Entity> {
+  async getById(id: string | number, opts?: GetByIdOptions<Entity>): Promise<Entity> {
     const entity = await this.findById(id, opts);
     if (!entity) {
-      throw new NotFoundException(
-        `Unable to find ${this.EntityClass.name} with id: ${id}`,
-      );
+      throw new NotFoundException(`Unable to find ${this.EntityClass.name} with id: ${id}`);
     }
     return entity;
   }
@@ -222,9 +209,7 @@ export class MikroOrmQueryService<Entity extends object>
    * @param records - The entities to create.
    */
   async createMany(records: DeepPartial<Entity>[]): Promise<Entity[]> {
-    const entities = await Promise.all(
-      records.map((r) => this.ensureIsEntityAndDoesNotExist(r)),
-    );
+    const entities = await Promise.all(records.map((r) => this.ensureIsEntityAndDoesNotExist(r)));
     await this.repo.getEntityManager().persist(entities).flush();
     return entities;
   }
@@ -297,10 +282,7 @@ export class MikroOrmQueryService<Entity extends object>
    * @param id - The `id` of the entity to delete.
    * @param filter Additional filter to use when finding the entity to delete.
    */
-  async deleteOne(
-    id: string | number,
-    opts?: DeleteOneOptions<Entity>,
-  ): Promise<Entity> {
+  async deleteOne(id: string | number, opts?: DeleteOneOptions<Entity>): Promise<Entity> {
     const entity = await this.getById(id, opts);
     const em = this.repo.getEntityManager();
     if (this.useSoftDelete) {
@@ -362,10 +344,7 @@ export class MikroOrmQueryService<Entity extends object>
    * @param id - The `id` of the entity to restore.
    * @param opts Additional filter to use when finding the entity to restore.
    */
-  async restoreOne(
-    id: string | number,
-    opts?: Filterable<Entity>,
-  ): Promise<Entity> {
+  async restoreOne(id: string | number, opts?: Filterable<Entity>): Promise<Entity> {
     this.ensureSoftDeleteEnabled();
     // When restoring, we need to find soft-deleted entities, so bypass filters
     const em = this.repo.getEntityManager();
@@ -388,9 +367,7 @@ export class MikroOrmQueryService<Entity extends object>
       filters: false,
     });
     if (!entity) {
-      throw new NotFoundException(
-        `Unable to find ${this.EntityClass.name} with id: ${id}`,
-      );
+      throw new NotFoundException(`Unable to find ${this.EntityClass.name} with id: ${id}`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     wrap(entity).assign({ deletedAt: null } as any);
@@ -417,11 +394,9 @@ export class MikroOrmQueryService<Entity extends object>
     const em = this.repo.getEntityManager();
     const whereBuilder = new WhereBuilder<Entity>();
     const whereClause = whereBuilder.build(filter);
-    const entities = await em.find(
-      this.EntityClass,
-      whereClause as FilterQuery<Entity>,
-      { filters: false },
-    );
+    const entities = await em.find(this.EntityClass, whereClause as FilterQuery<Entity>, {
+      filters: false,
+    });
 
     for (const entity of entities) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -436,14 +411,9 @@ export class MikroOrmQueryService<Entity extends object>
     return this.repo.getEntityManager();
   }
 
-  private async ensureIsEntityAndDoesNotExist(
-    e: DeepPartial<Entity>,
-  ): Promise<Entity> {
+  private async ensureIsEntityAndDoesNotExist(e: DeepPartial<Entity>): Promise<Entity> {
     if (!(e instanceof this.EntityClass)) {
-      const entity = this.em.create(
-        this.repo.getEntityName(),
-        e as RequiredEntityData<Entity>,
-      );
+      const entity = this.em.create(this.repo.getEntityName(), e as RequiredEntityData<Entity>);
       return this.ensureEntityDoesNotExist(entity);
     }
     return this.ensureEntityDoesNotExist(e);

@@ -17,9 +17,7 @@ describe('WhereBuilder', (): void => {
   const getQueryBuilder = () => getRepo().createQueryBuilder();
   const createWhereBuilder = () => new WhereBuilder<TestEntity>();
 
-  const getSQL = (
-    filter: Filter<TestEntity>,
-  ): { sql: string; bindings: readonly unknown[] } => {
+  const getSQL = (filter: Filter<TestEntity>): { sql: string; bindings: readonly unknown[] } => {
     const mikroOrmFilter = createWhereBuilder().build(filter);
     const qb = getQueryBuilder();
     qb.where(mikroOrmFilter as QBFilterQuery<TestEntity>);

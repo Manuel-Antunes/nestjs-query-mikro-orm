@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import type { EntityProperty, FilterQuery } from '@mikro-orm/core';
 import type { EntityRepository, QueryBuilder } from '@mikro-orm/knex';
 import type { AggregateQuery, Query } from '@nestjs-query/core';
@@ -14,10 +13,7 @@ export type EntityIndexRelation<Relation> = Relation & {
  *
  * Class that will convert a Query into a MikroORM Query Builder for relations.
  */
-export class RelationQueryBuilder<
-  Entity extends object,
-  Relation extends object,
-> {
+export class RelationQueryBuilder<Entity extends object, Relation extends object> {
   readonly filterQueryBuilder: FilterQueryBuilder<Relation>;
 
   constructor(
@@ -44,22 +40,13 @@ export class RelationQueryBuilder<
     const entityPrimaryKey = entityMeta.primaryKeys[0];
     const entityId = (entity as Record<string, unknown>)[entityPrimaryKey];
 
-    let qb = em.createQueryBuilder<Relation>(
-      relationEntityName,
-    ) as QueryBuilder<Relation>;
+    let qb = em.createQueryBuilder<Relation>(relationEntityName) as QueryBuilder<Relation>;
 
     // For owned 1:1 relations where FK might not be loaded, use a JOIN
-    if (
-      relationMeta.kind === '1:1' &&
-      relationMeta.owner &&
-      relationMeta.inversedBy
-    ) {
+    if (relationMeta.kind === '1:1' && relationMeta.owner && relationMeta.inversedBy) {
       // Check if FK is available
-      const fkFieldName =
-        relationMeta.joinColumns?.[0] || relationMeta.fieldNames?.[0];
-      const fkValue = fkFieldName
-        ? (entity as Record<string, unknown>)[fkFieldName]
-        : undefined;
+      const fkFieldName = relationMeta.joinColumns?.[0] || relationMeta.fieldNames?.[0];
+      const fkValue = fkFieldName ? (entity as Record<string, unknown>)[fkFieldName] : undefined;
 
       if (fkValue === undefined) {
         // FK not loaded, need to JOIN through the parent entity
@@ -67,11 +54,9 @@ export class RelationQueryBuilder<
         const relationAlias = qb.alias; // Use the QB's auto-generated alias (usually 't0')
 
         // Join parent entity via the inverse relationship and filter by parent's PK
-        qb = qb
-          .leftJoin(`${relationAlias}.${relationMeta.inversedBy}`, parentAlias)
-          .where({
-            [`${parentAlias}.${entityPrimaryKey}`]: entityId,
-          } as FilterQuery<Relation>);
+        qb = qb.leftJoin(`${relationAlias}.${relationMeta.inversedBy}`, parentAlias).where({
+          [`${parentAlias}.${entityPrimaryKey}`]: entityId,
+        } as FilterQuery<Relation>);
 
         // Apply additional filters
         qb = this.filterQueryBuilder.applyFilter(qb, query.filter);
@@ -97,10 +82,7 @@ export class RelationQueryBuilder<
   /**
    * Executes the select query and returns the results.
    */
-  async selectAndExecute(
-    entity: Entity,
-    query: Query<Relation>,
-  ): Promise<Relation[]> {
+  async selectAndExecute(entity: Entity, query: Query<Relation>): Promise<Relation[]> {
     const qb = this.select(entity, query);
     return qb.getResultList() as Promise<Relation[]>;
   }
@@ -110,9 +92,7 @@ export class RelationQueryBuilder<
     const em = this.repo.getEntityManager();
     const relationEntityName = relationMeta.type;
 
-    let qb = em.createQueryBuilder<Relation>(
-      relationEntityName,
-    ) as QueryBuilder<Relation>;
+    let qb = em.createQueryBuilder<Relation>(relationEntityName) as QueryBuilder<Relation>;
 
     // Build the where condition based on the relation type
     const whereCondition = this.buildWhereCondition(entity, relationMeta);
@@ -133,9 +113,7 @@ export class RelationQueryBuilder<
     const em = this.repo.getEntityManager();
     const relationEntityName = relationMeta.type;
 
-    let qb = em.createQueryBuilder<Relation>(
-      relationEntityName,
-    ) as QueryBuilder<Relation>;
+    let qb = em.createQueryBuilder<Relation>(relationEntityName) as QueryBuilder<Relation>;
 
     // Build the where condition
     const whereCondition = this.buildWhereCondition(entity, relationMeta);
@@ -144,10 +122,7 @@ export class RelationQueryBuilder<
     // Apply aggregate, filter, sorting, and grouping
     qb = this.filterQueryBuilder.applyAggregate(qb, aggregateQuery);
     qb = this.filterQueryBuilder.applyFilter(qb, query.filter);
-    qb = this.filterQueryBuilder.applyAggregateSorting(
-      qb,
-      aggregateQuery.groupBy,
-    );
+    qb = this.filterQueryBuilder.applyAggregateSorting(qb, aggregateQuery.groupBy);
     qb = this.filterQueryBuilder.applyGroupBy(qb, aggregateQuery.groupBy);
 
     return qb.execute<Record<string, unknown>[]>();
@@ -159,9 +134,7 @@ export class RelationQueryBuilder<
   ): Record<string, unknown> {
     const em = this.repo.getEntityManager();
     const entityMeta = em.getMetadata().get(this.repo.getEntityName());
-    const relationEntityMeta = em
-      .getMetadata()
-      .get(relationMeta.type as string);
+    const relationEntityMeta = em.getMetadata().get(relationMeta.type as string);
     const entityPrimaryKey = entityMeta.primaryKeys[0];
     const relationPrimaryKey = relationEntityMeta.primaryKeys[0];
     const entityId = (entity as Record<string, unknown>)[entityPrimaryKey];
@@ -195,10 +168,7 @@ export class RelationQueryBuilder<
         // Look for any property that ends with the relation name (case-insensitive) + Id
         const matchingKey = entityKeys.find((key) => {
           const keyLower = key.toLowerCase();
-          return (
-            keyLower.endsWith('id') &&
-            relationNameLower.includes(keyLower.replace(/id$/, ''))
-          );
+          return keyLower.endsWith('id') && relationNameLower.includes(keyLower.replace(/id$/, ''));
         });
         if (matchingKey) {
           fkValue = entityAsRecord[matchingKey];
@@ -209,9 +179,7 @@ export class RelationQueryBuilder<
       if (fkValue === undefined) {
         const relationValue = entityAsRecord[relationMeta.name];
         if (typeof relationValue === 'object' && relationValue !== null) {
-          fkValue = (relationValue as Record<string, unknown>)[
-            relationPrimaryKey
-          ];
+          fkValue = (relationValue as Record<string, unknown>)[relationPrimaryKey];
         } else {
           fkValue = relationValue;
         }
@@ -227,8 +195,7 @@ export class RelationQueryBuilder<
         // Try multiple approaches to get the FK value:
 
         // 1. Try the FK field (e.g., one_test_relation_test_relation_pk)
-        const fkFieldName =
-          relationMeta.joinColumns?.[0] || relationMeta.fieldNames?.[0];
+        const fkFieldName = relationMeta.joinColumns?.[0] || relationMeta.fieldNames?.[0];
         let fkValue: unknown;
 
         if (fkFieldName) {
@@ -237,13 +204,9 @@ export class RelationQueryBuilder<
 
         // 2. If FK field not set, try getting it from the loaded relation object
         if (fkValue === undefined) {
-          const relationValue = (entity as Record<string, unknown>)[
-            relationMeta.name
-          ];
+          const relationValue = (entity as Record<string, unknown>)[relationMeta.name];
           if (typeof relationValue === 'object' && relationValue !== null) {
-            fkValue = (relationValue as Record<string, unknown>)[
-              relationPrimaryKey
-            ];
+            fkValue = (relationValue as Record<string, unknown>)[relationPrimaryKey];
           } else {
             fkValue = relationValue;
           }
@@ -304,9 +267,7 @@ export class RelationQueryBuilder<
   }[] {
     const em = this.repo.getEntityManager();
     const relationMeta = this.getRelationMeta();
-    const relationEntityMeta = em
-      .getMetadata()
-      .get(relationMeta.type as string);
+    const relationEntityMeta = em.getMetadata().get(relationMeta.type as string);
 
     return relationEntityMeta.primaryKeys.map((pk) => {
       const prop = relationEntityMeta.properties[pk];

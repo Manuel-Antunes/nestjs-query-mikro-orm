@@ -7,10 +7,7 @@ import { SortDirection } from '@nestjs-query/core';
 import { Test } from '@nestjs/testing';
 import { plainToClass } from 'class-transformer';
 
-import {
-  CONNECTION_OPTIONS,
-  truncate,
-} from '../__fixtures__/connection.fixture';
+import { CONNECTION_OPTIONS, truncate } from '../__fixtures__/connection.fixture';
 import { RelationOfTestRelationEntity } from '../__fixtures__/relation-of-test-relation.entity';
 import {
   seed,
@@ -46,9 +43,7 @@ describe('MikroOrmQueryService', (): void => {
   }
 
   class TestSoftDeleteEntityService extends MikroOrmQueryService<TestSoftDeleteEntity> {
-    constructor(
-      override readonly repo: EntityRepository<TestSoftDeleteEntity>,
-    ) {
+    constructor(override readonly repo: EntityRepository<TestSoftDeleteEntity>) {
       super(repo, { useSoftDelete: true });
     }
   }
@@ -75,14 +70,12 @@ describe('MikroOrmQueryService', (): void => {
       providers: [
         {
           provide: TestEntityService,
-          useFactory: (repo: EntityRepository<TestEntity>) =>
-            new TestEntityService(repo),
+          useFactory: (repo: EntityRepository<TestEntity>) => new TestEntityService(repo),
           inject: [getRepositoryToken(TestEntity)],
         },
         {
           provide: TestRelationService,
-          useFactory: (repo: EntityRepository<TestRelation>) =>
-            new TestRelationService(repo),
+          useFactory: (repo: EntityRepository<TestRelation>) => new TestRelationService(repo),
           inject: [getRepositoryToken(TestRelation)],
         },
         {
@@ -103,9 +96,7 @@ describe('MikroOrmQueryService', (): void => {
   it('should create a filterQueryBuilder and assemblerService based on the repo passed in if not provided', () => {
     const queryService = moduleRef.get(TestEntityService);
     expect(queryService.filterQueryBuilder).toBeInstanceOf(FilterQueryBuilder);
-    expect(queryService.filterQueryBuilder.repo.getEntityName()).toBe(
-      'TestEntity',
-    );
+    expect(queryService.filterQueryBuilder.repo.getEntityName()).toBe('TestEntity');
   });
 
   describe('#query', () => {
@@ -123,9 +114,7 @@ describe('MikroOrmQueryService', (): void => {
       describe('deeply nested', () => {
         it('oneToOne - oneToMany', async () => {
           const entity = TEST_ENTITIES[0];
-          const relationEntity = TEST_RELATIONS.find(
-            (r) => r.testEntityId === entity.testEntityPk,
-          );
+          const relationEntity = TEST_RELATIONS.find((r) => r.testEntityId === entity.testEntityPk);
           expect(relationEntity).toBeDefined();
           const queryService = moduleRef.get(TestEntityService);
           const queryResult = await queryService.query({
@@ -144,9 +133,7 @@ describe('MikroOrmQueryService', (): void => {
         });
         it('oneToOne - manyToOne', async () => {
           const entity = TEST_ENTITIES[0];
-          const relationEntity = TEST_RELATIONS.find(
-            (r) => r.testEntityId === entity.testEntityPk,
-          );
+          const relationEntity = TEST_RELATIONS.find((r) => r.testEntityId === entity.testEntityPk);
           expect(relationEntity).toBeDefined();
           const queryService = moduleRef.get(TestEntityService);
           const queryResult = await queryService.query({
@@ -219,10 +206,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               testEntity: {
                 testEntityPk: {
-                  in: [
-                    TEST_ENTITIES[0].testEntityPk,
-                    TEST_ENTITIES[1].testEntityPk,
-                  ],
+                  in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
                 },
               },
             },
@@ -240,10 +224,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               testEntityUniDirectional: {
                 testEntityPk: {
-                  in: [
-                    TEST_ENTITIES[0].testEntityPk,
-                    TEST_ENTITIES[1].testEntityPk,
-                  ],
+                  in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
                 },
               },
             },
@@ -264,18 +245,13 @@ describe('MikroOrmQueryService', (): void => {
                 {
                   testEntity: {
                     testEntityPk: {
-                      in: [
-                        TEST_ENTITIES[0].testEntityPk,
-                        TEST_ENTITIES[1].testEntityPk,
-                      ],
+                      in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
                     },
                   },
                 },
               ],
             },
-            sorting: [
-              { field: 'testRelationPk', direction: SortDirection.ASC },
-            ],
+            sorting: [{ field: 'testRelationPk', direction: SortDirection.ASC }],
             paging: { limit: 3 },
           });
           const serialized = queryResults;
@@ -294,10 +270,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               testRelations: {
                 relationName: {
-                  in: [
-                    TEST_RELATIONS[0].relationName,
-                    TEST_RELATIONS[1].relationName,
-                  ],
+                  in: [TEST_RELATIONS[0].relationName, TEST_RELATIONS[1].relationName],
                 },
               } as any,
             },
@@ -340,10 +313,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               manyTestRelations: {
                 relationName: {
-                  in: [
-                    TEST_RELATIONS[1].relationName,
-                    TEST_RELATIONS[4].relationName,
-                  ],
+                  in: [TEST_RELATIONS[1].relationName, TEST_RELATIONS[4].relationName],
                 },
               } as any,
             },
@@ -362,10 +332,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               manyToManyUniDirectional: {
                 relationName: {
-                  in: [
-                    TEST_RELATIONS[2].relationName,
-                    TEST_RELATIONS[5].relationName,
-                  ],
+                  in: [TEST_RELATIONS[2].relationName, TEST_RELATIONS[5].relationName],
                 },
               } as any,
             },
@@ -384,10 +351,7 @@ describe('MikroOrmQueryService', (): void => {
                 {
                   manyTestRelations: {
                     relationName: {
-                      in: [
-                        TEST_RELATIONS[1].relationName,
-                        TEST_RELATIONS[4].relationName,
-                      ],
+                      in: [TEST_RELATIONS[1].relationName, TEST_RELATIONS[4].relationName],
                     },
                   } as any,
                 },
@@ -660,10 +624,7 @@ describe('MikroOrmQueryService', (): void => {
           const count = await queryService.count({
             testEntity: {
               testEntityPk: {
-                in: [
-                  TEST_ENTITIES[0].testEntityPk,
-                  TEST_ENTITIES[2].testEntityPk,
-                ],
+                in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[2].testEntityPk],
               },
             },
           });
@@ -699,9 +660,7 @@ describe('MikroOrmQueryService', (): void => {
           {},
         );
         const serialized = queryResult;
-        expect(
-          (serialized as TestRelation[]).map((r: any) => r.testEntityId),
-        ).toEqual([
+        expect((serialized as TestRelation[]).map((r: any) => r.testEntityId)).toEqual([
           TEST_ENTITIES[0].testEntityPk,
           TEST_ENTITIES[0].testEntityPk,
           TEST_ENTITIES[0].testEntityPk,
@@ -719,9 +678,9 @@ describe('MikroOrmQueryService', (): void => {
           },
         );
         const serialized = queryResult;
-        expect(
-          (serialized as TestRelation[]).map((r: any) => r.testRelationPk),
-        ).toEqual([TEST_RELATIONS[0].testRelationPk]);
+        expect((serialized as TestRelation[]).map((r: any) => r.testRelationPk)).toEqual([
+          TEST_RELATIONS[0].testRelationPk,
+        ]);
       });
 
       it('should apply a paging', async () => {
@@ -735,9 +694,7 @@ describe('MikroOrmQueryService', (): void => {
           },
         );
         const serialized = queryResult;
-        expect(
-          (serialized as TestRelation[]).map((r: any) => r.testRelationPk),
-        ).toEqual([
+        expect((serialized as TestRelation[]).map((r: any) => r.testRelationPk)).toEqual([
           TEST_RELATIONS[1].testRelationPk,
           TEST_RELATIONS[2].testRelationPk,
         ]);
@@ -748,24 +705,15 @@ describe('MikroOrmQueryService', (): void => {
           const entity = TEST_ENTITIES[2];
           const queryService = moduleRef.get(TestEntityService);
           const queryResult = (
-            await queryService.queryRelations(
-              TestRelation,
-              'manyToManyUniDirectional',
-              entity,
-              {},
-            )
+            await queryService.queryRelations(TestRelation, 'manyToManyUniDirectional', entity, {})
           ).map((r: TestRelation) => {
             delete r.relationOfTestRelationId;
             return r;
           });
           const serialized = queryResult;
 
-          TEST_RELATIONS.filter((tr) =>
-            tr.relationName.endsWith('three'),
-          ).forEach((tr) => {
-            expect(serialized).toEqual(
-              expect.arrayContaining([expect.objectContaining(tr)]),
-            );
+          TEST_RELATIONS.filter((tr) => tr.relationName.endsWith('three')).forEach((tr) => {
+            expect(serialized).toEqual(expect.arrayContaining([expect.objectContaining(tr)]));
           });
         });
       });
@@ -1333,11 +1281,7 @@ describe('MikroOrmQueryService', (): void => {
       it('throw an error if a relation with that name is not found.', async () => {
         const queryService = moduleRef.get(TestEntityService);
         return expect(
-          queryService.findRelation(
-            TestRelation,
-            'badRelation',
-            TEST_ENTITIES[0],
-          ),
+          queryService.findRelation(TestRelation, 'badRelation', TEST_ENTITIES[0]),
         ).rejects.toThrow('Unable to find relation badRelation on TestEntity');
       });
 
@@ -1397,10 +1341,7 @@ describe('MikroOrmQueryService', (): void => {
           {
             filter: {
               testRelationPk: {
-                in: [
-                  TEST_RELATIONS[0].testRelationPk,
-                  TEST_RELATIONS[6].testRelationPk,
-                ],
+                in: [TEST_RELATIONS[0].testRelationPk, TEST_RELATIONS[6].testRelationPk],
               },
             },
           },
@@ -1413,12 +1354,8 @@ describe('MikroOrmQueryService', (): void => {
         });
         // Use toMatchObject since JOIN-based queries may populate additional relation fields
         expect(adaptedQueryResult.size).toBe(2);
-        expect(adaptedQueryResult.get(entities[0])).toMatchObject(
-          TEST_RELATIONS[0],
-        );
-        expect(adaptedQueryResult.get(entities[2])).toMatchObject(
-          TEST_RELATIONS[6],
-        );
+        expect(adaptedQueryResult.get(entities[0])).toMatchObject(TEST_RELATIONS[0]);
+        expect(adaptedQueryResult.get(entities[2])).toMatchObject(TEST_RELATIONS[6]);
       });
 
       it('should return undefined select if no results are found.', async () => {
@@ -1439,9 +1376,7 @@ describe('MikroOrmQueryService', (): void => {
           adaptedQueryResult.set(key, serialized);
         });
         expect(adaptedQueryResult.size).toBe(1); // Only includes entities with relations
-        expect(adaptedQueryResult.get(entities[0])).toMatchObject(
-          TEST_RELATIONS[0],
-        );
+        expect(adaptedQueryResult.get(entities[0])).toMatchObject(TEST_RELATIONS[0]);
         expect(adaptedQueryResult.get(entities[1])).toBeUndefined();
       });
     });
@@ -1472,11 +1407,7 @@ describe('MikroOrmQueryService', (): void => {
     it('should not modify if the relationIds is empty', async () => {
       const entity = TEST_ENTITIES[0];
       const queryService = moduleRef.get(TestEntityService);
-      const queryResult = await queryService.addRelations(
-        'testRelations',
-        entity.testEntityPk,
-        [],
-      );
+      const queryResult = await queryService.addRelations('testRelations', entity.testEntityPk, []);
       const serialized = queryResult;
       expect(serialized).toMatchObject(entity);
 
@@ -1518,9 +1449,7 @@ describe('MikroOrmQueryService', (): void => {
               relationFilter: { relationName: { like: '%-one' } },
             },
           ),
-        ).rejects.toThrow(
-          'Unable to find all testRelations to add to TestEntity',
-        );
+        ).rejects.toThrow('Unable to find all testRelations to add to TestEntity');
       });
     });
   });
@@ -1529,9 +1458,7 @@ describe('MikroOrmQueryService', (): void => {
     it('set all relations on the entity', async () => {
       const entity = TEST_ENTITIES[0];
       const queryService = moduleRef.get(TestEntityService);
-      const relationIds = TEST_RELATIONS.slice(3, 6).map(
-        (r) => r.testRelationPk,
-      );
+      const relationIds = TEST_RELATIONS.slice(3, 6).map((r) => r.testRelationPk);
       const queryResult = await queryService.setRelations(
         'testRelations',
         entity.testEntityPk,
@@ -1547,19 +1474,13 @@ describe('MikroOrmQueryService', (): void => {
         {},
       );
       const serializedRelations = relations;
-      expect(serializedRelations.map((r: any) => r.testRelationPk)).toEqual(
-        relationIds,
-      );
+      expect(serializedRelations.map((r: any) => r.testRelationPk)).toEqual(relationIds);
     });
 
     it('should remove all relations if the relationIds is empty', async () => {
       const entity = TEST_ENTITIES[0];
       const queryService = moduleRef.get(TestEntityService);
-      const queryResult = await queryService.setRelations(
-        'testRelations',
-        entity.testEntityPk,
-        [],
-      );
+      const queryResult = await queryService.setRelations('testRelations', entity.testEntityPk, []);
       const serialized = queryResult;
       expect(serialized).toMatchObject(entity);
 
@@ -1601,9 +1522,7 @@ describe('MikroOrmQueryService', (): void => {
               relationFilter: { relationName: { like: '%-one' } },
             },
           ),
-        ).rejects.toThrow(
-          'Unable to find all testRelations to set on TestEntity',
-        );
+        ).rejects.toThrow('Unable to find all testRelations to set on TestEntity');
       });
     });
   });
@@ -1620,15 +1539,9 @@ describe('MikroOrmQueryService', (): void => {
       const serialized = queryResult;
       expect(serialized).toMatchObject(entity);
 
-      const relation = await queryService.findRelation(
-        TestRelation,
-        'oneTestRelation',
-        entity,
-      );
+      const relation = await queryService.findRelation(TestRelation, 'oneTestRelation', entity);
       const serializedRelation = relation;
-      expect(serializedRelation?.testRelationPk).toBe(
-        TEST_RELATIONS[1].testRelationPk,
-      );
+      expect(serializedRelation?.testRelationPk).toBe(TEST_RELATIONS[1].testRelationPk);
     });
 
     describe('with modify options', () => {
@@ -1659,9 +1572,7 @@ describe('MikroOrmQueryService', (): void => {
               relationFilter: { relationName: { like: '%-one' } },
             },
           ),
-        ).rejects.toThrow(
-          'Unable to find oneTestRelation to set on TestEntity',
-        );
+        ).rejects.toThrow('Unable to find oneTestRelation to set on TestEntity');
       });
     });
   });
@@ -1737,9 +1648,7 @@ describe('MikroOrmQueryService', (): void => {
               relationFilter: { relationName: { like: '%-one' } },
             },
           ),
-        ).rejects.toThrow(
-          'Unable to find all testRelations to remove from TestEntity',
-        );
+        ).rejects.toThrow('Unable to find all testRelations to remove from TestEntity');
       });
     });
   });
@@ -1757,11 +1666,7 @@ describe('MikroOrmQueryService', (): void => {
         const serialized = queryResult;
         expect(serialized).toMatchObject(entity);
 
-        const relation = await queryService.findRelation(
-          TestRelation,
-          'oneTestRelation',
-          entity,
-        );
+        const relation = await queryService.findRelation(TestRelation, 'oneTestRelation', entity);
         expect(relation).toBeUndefined();
       });
 
@@ -1793,9 +1698,7 @@ describe('MikroOrmQueryService', (): void => {
                 relationFilter: { relationName: { like: '%-one' } },
               },
             ),
-          ).rejects.toThrow(
-            'Unable to find oneTestRelation to remove from TestEntity',
-          );
+          ).rejects.toThrow('Unable to find oneTestRelation to remove from TestEntity');
         });
       });
     });
@@ -1813,11 +1716,7 @@ describe('MikroOrmQueryService', (): void => {
         // After removing the relation, testEntityId should be null
         expect(serialized).toMatchObject({ ...relation, testEntityId: null });
 
-        const entity = await queryService.findRelation(
-          TestEntity,
-          'testEntity',
-          queryResult,
-        );
+        const entity = await queryService.findRelation(TestEntity, 'testEntity', queryResult);
         expect(entity).toBeUndefined();
       });
 
@@ -1836,9 +1735,7 @@ describe('MikroOrmQueryService', (): void => {
                 },
               },
             ),
-          ).rejects.toThrow(
-            'Unable to find TestRelation with id: test-relations-test-entity-1-1',
-          );
+          ).rejects.toThrow('Unable to find TestRelation with id: test-relations-test-entity-1-1');
         });
 
         it('should throw an error if the relations are not found with the relationIds and provided filter', async () => {
@@ -1855,9 +1752,7 @@ describe('MikroOrmQueryService', (): void => {
                 },
               },
             ),
-          ).rejects.toThrow(
-            'Unable to find testEntity to remove from TestRelation',
-          );
+          ).rejects.toThrow('Unable to find testEntity to remove from TestRelation');
         });
       });
     });
@@ -1910,9 +1805,7 @@ describe('MikroOrmQueryService', (): void => {
                 relationFilter: { relationName: { like: '%-one' } },
               },
             ),
-          ).rejects.toThrow(
-            'Unable to find testRelations to remove from TestEntity',
-          );
+          ).rejects.toThrow('Unable to find testRelations to remove from TestEntity');
         });
       });
     });
@@ -1985,9 +1878,7 @@ describe('MikroOrmQueryService', (): void => {
           queryService.getById(entity.testEntityPk, {
             filter: { stringType: { eq: TEST_ENTITIES[1].stringType } },
           }),
-        ).rejects.toThrow(
-          `Unable to find TestEntity with id: ${entity.testEntityPk}`,
-        );
+        ).rejects.toThrow(`Unable to find TestEntity with id: ${entity.testEntityPk}`);
       });
     });
   });
@@ -2036,9 +1927,7 @@ describe('MikroOrmQueryService', (): void => {
     it('should reject if the entity contains an id', async () => {
       const entity = TEST_ENTITIES[0];
       const queryService = moduleRef.get(TestEntityService);
-      return expect(queryService.createOne(entity)).rejects.toThrow(
-        'Entity already exists',
-      );
+      return expect(queryService.createOne(entity)).rejects.toThrow('Entity already exists');
     });
   });
 
@@ -2059,12 +1948,10 @@ describe('MikroOrmQueryService', (): void => {
   describe('#deleteOne', () => {
     it('remove the entity', async () => {
       const queryService = moduleRef.get(TestEntityService);
-      const deleted = await queryService.deleteOne(
-        TEST_ENTITIES[0].testEntityPk,
-      );
+      const deleted = await queryService.deleteOne(TEST_ENTITIES[0].testEntityPk);
       const serialized = deleted;
       // MikroORM's toJSON() filters out undefined values, so testEntityPk won't be in the result
-      const { testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
+      const { testEntityPk: _testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
       expect(serialized).toMatchObject(expectedWithoutPk);
       expect(deleted.testEntityPk).toBeUndefined(); // Verify PK is cleared on the entity itself
     });
@@ -2085,7 +1972,7 @@ describe('MikroOrmQueryService', (): void => {
         });
         const serialized = deleted;
         // MikroORM's toJSON() filters out undefined values, so testEntityPk won't be in the result
-        const { testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
+        const { testEntityPk: _testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
         expect(serialized).toMatchObject(expectedWithoutPk);
         expect(deleted.testEntityPk).toBeUndefined(); // Verify PK is cleared on the entity itself
       });
@@ -2097,9 +1984,7 @@ describe('MikroOrmQueryService', (): void => {
           queryService.deleteOne(entity.testEntityPk, {
             filter: { stringType: { eq: TEST_ENTITIES[1].stringType } },
           }),
-        ).rejects.toThrow(
-          `Unable to find TestEntity with id: ${entity.testEntityPk}`,
-        );
+        ).rejects.toThrow(`Unable to find TestEntity with id: ${entity.testEntityPk}`);
       });
     });
   });
@@ -2121,19 +2006,18 @@ describe('MikroOrmQueryService', (): void => {
 
     it('should reject if the update contains a primary key', () => {
       const queryService = moduleRef.get(TestEntityService);
-      return expect(
-        queryService.updateMany({ testEntityPk: 'updated' }, {}),
-      ).rejects.toThrow('Id cannot be specified when updating');
+      return expect(queryService.updateMany({ testEntityPk: 'updated' }, {})).rejects.toThrow(
+        'Id cannot be specified when updating',
+      );
     });
   });
 
   describe('#updateOne', () => {
     it('update the entity', async () => {
       const queryService = moduleRef.get(TestEntityService);
-      const updated = await queryService.updateOne(
-        TEST_ENTITIES[0].testEntityPk,
-        { stringType: 'updated' },
-      );
+      const updated = await queryService.updateOne(TEST_ENTITIES[0].testEntityPk, {
+        stringType: 'updated',
+      });
       const serialized = updated;
       expect(serialized).toMatchObject({
         ...TEST_ENTITIES[0],
@@ -2152,9 +2036,9 @@ describe('MikroOrmQueryService', (): void => {
 
     it('call fail if the entity is not found', async () => {
       const queryService = moduleRef.get(TestEntityService);
-      return expect(
-        queryService.updateOne('bad-id', { stringType: 'updated' }),
-      ).rejects.toThrow('Unable to find TestEntity with id: bad-id');
+      return expect(queryService.updateOne('bad-id', { stringType: 'updated' })).rejects.toThrow(
+        'Unable to find TestEntity with id: bad-id',
+      );
     });
 
     describe('with filter', () => {
@@ -2179,9 +2063,7 @@ describe('MikroOrmQueryService', (): void => {
             { stringType: 'updated' },
             { filter: { stringType: { eq: TEST_ENTITIES[1].stringType } } },
           ),
-        ).rejects.toThrow(
-          `Unable to find TestEntity with id: ${entity.testEntityPk}`,
-        );
+        ).rejects.toThrow(`Unable to find TestEntity with id: ${entity.testEntityPk}`);
       });
     });
   });
@@ -2197,10 +2079,9 @@ describe('MikroOrmQueryService', (): void => {
         await queryService.deleteMany(deleteMany);
         const foundEntity = await queryService.findById(entity.testEntityPk);
         expect(foundEntity).toBeUndefined();
-        const deletedEntity = await queryService.repo.findOne(
-          entity.testEntityPk,
-          { filters: false },
-        );
+        const deletedEntity = await queryService.repo.findOne(entity.testEntityPk, {
+          filters: false,
+        });
         expect(deletedEntity).toMatchObject({
           ...entity,
           deletedAt: expect.any(Date),
@@ -2221,10 +2102,9 @@ describe('MikroOrmQueryService', (): void => {
         });
         const foundEntity = await queryService.findById(entity.testEntityPk);
         expect(foundEntity).toBeUndefined();
-        const deletedEntity = await queryService.repo.findOne(
-          entity.testEntityPk,
-          { filters: false },
-        );
+        const deletedEntity = await queryService.repo.findOne(entity.testEntityPk, {
+          filters: false,
+        });
         const serializedDeleted = deletedEntity ? deletedEntity : deletedEntity;
         expect(serializedDeleted).toMatchObject({
           ...entity,
@@ -2262,9 +2142,7 @@ describe('MikroOrmQueryService', (): void => {
 
       it('should fail if the useSoftDelete is not enabled', async () => {
         const queryService = moduleRef.get(TestEntityService);
-        return expect(
-          queryService.restoreOne(TEST_ENTITIES[0].testEntityPk),
-        ).rejects.toThrow(
+        return expect(queryService.restoreOne(TEST_ENTITIES[0].testEntityPk)).rejects.toThrow(
           'Restore not allowed for non soft deleted entity TestEntity.',
         );
       });
@@ -2292,9 +2170,7 @@ describe('MikroOrmQueryService', (): void => {
                 stringType: { eq: TEST_SOFT_DELETE_ENTITIES[1].stringType },
               },
             }),
-          ).rejects.toThrow(
-            `Unable to find TestSoftDeleteEntity with id: ${entity.testEntityPk}`,
-          );
+          ).rejects.toThrow(`Unable to find TestSoftDeleteEntity with id: ${entity.testEntityPk}`);
         });
       });
     });
@@ -2314,9 +2190,7 @@ describe('MikroOrmQueryService', (): void => {
 
       it('should fail if the useSoftDelete is not enabled', async () => {
         const queryService = moduleRef.get(TestEntityService);
-        return expect(
-          queryService.restoreMany({ stringType: { eq: 'foo' } }),
-        ).rejects.toThrow(
+        return expect(queryService.restoreMany({ stringType: { eq: 'foo' } })).rejects.toThrow(
           'Restore not allowed for non soft deleted entity TestEntity.',
         );
       });

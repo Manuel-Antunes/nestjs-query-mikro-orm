@@ -24,6 +24,4 @@ export const createMikroOrmQueryServiceProviders = (
   entities: EntityName<AnyEntity>[],
   contextName?: string,
 ): FactoryProvider[] =>
-  entities.map((entity) =>
-    createMikroOrmQueryServiceProvider(entity, contextName),
-  );
+  entities.map((entity) => createMikroOrmQueryServiceProvider(entity, contextName));

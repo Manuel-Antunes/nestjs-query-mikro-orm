@@ -72,9 +72,7 @@ export class WhereBuilder<Entity> {
   /**
    * Check if an object contains comparison operators (not nested relation filters)
    */
-  private isComparisonObject(
-    obj: unknown,
-  ): obj is FilterFieldComparison<unknown> {
+  private isComparisonObject(obj: unknown): obj is FilterFieldComparison<unknown> {
     if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
       return false;
     }
@@ -98,10 +96,7 @@ export class WhereBuilder<Entity> {
 
         if (comparison) {
           // Check if this is a nested relation filter (object without known operators)
-          if (
-            typeof comparison === 'object' &&
-            !this.isComparisonObject(comparison)
-          ) {
+          if (typeof comparison === 'object' && !this.isComparisonObject(comparison)) {
             // This is a nested relation filter - recursively build it
             result[field] = this.build(comparison as unknown as Filter<Entity>);
           } else {
@@ -118,14 +113,10 @@ export class WhereBuilder<Entity> {
    * Builds a MikroORM comparison from a nestjs-query FilterFieldComparison.
    * @param comparison - the comparison to convert.
    */
-  private buildComparison<T>(
-    comparison: FilterFieldComparison<T>,
-  ): Record<string, unknown> {
+  private buildComparison<T>(comparison: FilterFieldComparison<T>): Record<string, unknown> {
     const conditions: Record<string, unknown> = {};
 
-    const operators = Object.keys(
-      comparison,
-    ) as (keyof FilterFieldComparison<T>)[];
+    const operators = Object.keys(comparison) as (keyof FilterFieldComparison<T>)[];
 
     for (const operator of operators) {
       const value = comparison[operator];
@@ -146,10 +137,7 @@ export class WhereBuilder<Entity> {
    * @param operator - the nestjs-query operator.
    * @param value - the value to compare.
    */
-  private mapOperator(
-    operator: string,
-    value: unknown,
-  ): Record<string, unknown> {
+  private mapOperator(operator: string, value: unknown): Record<string, unknown> {
     const normalizedOp = operator.toLowerCase();
 
     switch (normalizedOp) {
@@ -191,9 +179,7 @@ export class WhereBuilder<Entity> {
         if (value === false) {
           return { $eq: false };
         }
-        throw new Error(
-          `Unexpected is operator param ${JSON.stringify(value)}`,
-        );
+        throw new Error(`Unexpected is operator param ${JSON.stringify(value)}`);
       case 'isnot':
         if (value === null) {
           return { $ne: null };
@@ -204,9 +190,7 @@ export class WhereBuilder<Entity> {
         if (value === false) {
           return { $ne: false };
         }
-        throw new Error(
-          `Unexpected isNot operator param ${JSON.stringify(value)}`,
-        );
+        throw new Error(`Unexpected isNot operator param ${JSON.stringify(value)}`);
       case 'between':
         if (this.isBetweenValue(value)) {
           return { $gte: value.lower, $lte: value.upper };
@@ -228,14 +212,7 @@ export class WhereBuilder<Entity> {
     }
   }
 
-  private isBetweenValue(
-    val: unknown,
-  ): val is CommonFieldComparisonBetweenType<unknown> {
-    return (
-      val !== null &&
-      typeof val === 'object' &&
-      'lower' in val &&
-      'upper' in val
-    );
+  private isBetweenValue(val: unknown): val is CommonFieldComparisonBetweenType<unknown> {
+    return val !== null && typeof val === 'object' && 'lower' in val && 'upper' in val;
   }
 }

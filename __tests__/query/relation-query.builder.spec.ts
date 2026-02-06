@@ -14,17 +14,11 @@ describe('RelationQueryBuilder', (): void => {
   beforeEach(createTestConnection);
   afterEach(closeTestConnection);
 
-  const getRelationQueryBuilder = <
-    Entity extends object,
-    Relation extends object,
-  >(
+  const getRelationQueryBuilder = <Entity extends object, Relation extends object>(
     EntityClass: Class<Entity>,
     relationName: string,
   ): RelationQueryBuilder<Entity, Relation> =>
-    new RelationQueryBuilder(
-      getTestConnection().em.getRepository(EntityClass),
-      relationName,
-    );
+    new RelationQueryBuilder(getTestConnection().em.getRepository(EntityClass), relationName);
 
   const getSQL = <Entity extends object, Relation extends object>(
     EntityClass: Class<Entity>,
@@ -61,12 +55,7 @@ describe('RelationQueryBuilder', (): void => {
 
     describe('one to many', () => {
       it('should query with a single entity', () => {
-        const { sql, bindings } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {},
-        );
+        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {});
         expect(sql).toContain('select');
         expect(sql).toContain('test_relation');
         expect(bindings.length).toBeGreaterThanOrEqual(0);
@@ -195,14 +184,9 @@ describe('RelationQueryBuilder', (): void => {
 
     describe('with paging', () => {
       it('should apply paging args going forward', () => {
-        const { sql, bindings } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            paging: { limit: 10, offset: 11 },
-          },
-        );
+        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          paging: { limit: 10, offset: 11 },
+        });
         expect(sql).toContain('limit');
         expect(sql).toContain('offset');
         expect(bindings).toContain(10);
@@ -210,14 +194,9 @@ describe('RelationQueryBuilder', (): void => {
       });
 
       it('should apply paging args going backward', () => {
-        const { sql, bindings } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            paging: { limit: 10, offset: 10 },
-          },
-        );
+        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          paging: { limit: 10, offset: 10 },
+        });
         expect(sql).toContain('limit');
         expect(sql).toContain('offset');
         expect(bindings).toContain(10);
@@ -226,123 +205,88 @@ describe('RelationQueryBuilder', (): void => {
 
     describe('with sorting', () => {
       it('should apply ASC sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [{ field: 'relationName', direction: SortDirection.ASC }],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [{ field: 'relationName', direction: SortDirection.ASC }],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('asc');
       });
 
       it('should apply ASC NULLS_FIRST sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [
-              {
-                field: 'relationName',
-                direction: SortDirection.ASC,
-                nulls: SortNulls.NULLS_FIRST,
-              },
-            ],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [
+            {
+              field: 'relationName',
+              direction: SortDirection.ASC,
+              nulls: SortNulls.NULLS_FIRST,
+            },
+          ],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('asc');
         expect(sql.toLowerCase()).toContain('nulls first');
       });
 
       it('should apply ASC NULLS_LAST sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [
-              {
-                field: 'relationName',
-                direction: SortDirection.ASC,
-                nulls: SortNulls.NULLS_LAST,
-              },
-            ],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [
+            {
+              field: 'relationName',
+              direction: SortDirection.ASC,
+              nulls: SortNulls.NULLS_LAST,
+            },
+          ],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('asc');
         expect(sql.toLowerCase()).toContain('nulls last');
       });
 
       it('should apply DESC sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [{ field: 'relationName', direction: SortDirection.DESC }],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [{ field: 'relationName', direction: SortDirection.DESC }],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('desc');
       });
 
       it('should apply DESC NULLS_FIRST sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [
-              {
-                field: 'relationName',
-                direction: SortDirection.DESC,
-                nulls: SortNulls.NULLS_FIRST,
-              },
-            ],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [
+            {
+              field: 'relationName',
+              direction: SortDirection.DESC,
+              nulls: SortNulls.NULLS_FIRST,
+            },
+          ],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('desc');
         expect(sql.toLowerCase()).toContain('nulls first');
       });
 
       it('should apply DESC NULLS_LAST sorting', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [
-              {
-                field: 'relationName',
-                direction: SortDirection.DESC,
-                nulls: SortNulls.NULLS_LAST,
-              },
-            ],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [
+            {
+              field: 'relationName',
+              direction: SortDirection.DESC,
+              nulls: SortNulls.NULLS_LAST,
+            },
+          ],
+        });
         expect(sql).toContain('order by');
         expect(sql.toLowerCase()).toContain('desc');
         expect(sql.toLowerCase()).toContain('nulls last');
       });
 
       it('should apply multiple sorts', () => {
-        const { sql } = getSQL(
-          TestEntity,
-          testEntity as TestEntity,
-          'testRelations',
-          {
-            sorting: [
-              { field: 'relationName', direction: SortDirection.ASC },
-              { field: 'testRelationPk', direction: SortDirection.DESC },
-            ],
-          },
-        );
+        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
+          sorting: [
+            { field: 'relationName', direction: SortDirection.ASC },
+            { field: 'testRelationPk', direction: SortDirection.DESC },
+          ],
+        });
         expect(sql).toContain('order by');
       });
     });

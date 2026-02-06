@@ -1,9 +1,4 @@
-import type {
-  Collection,
-  EntityName,
-  EntityProperty,
-  FilterQuery,
-} from '@mikro-orm/core';
+import type { Collection, EntityName, EntityProperty, FilterQuery } from '@mikro-orm/core';
 import type { EntityRepository } from '@mikro-orm/knex';
 import type {
   AggregateQuery,
@@ -38,10 +33,7 @@ export abstract class RelationQueryService<Entity extends object> {
 
   abstract repo: EntityRepository<Entity>;
 
-  abstract getById(
-    id: string | number,
-    opts?: GetByIdOptions<Entity>,
-  ): Promise<Entity>;
+  abstract getById(id: string | number, opts?: GetByIdOptions<Entity>): Promise<Entity>;
 
   /**
    * Query for an array of relations.
@@ -84,8 +76,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     return assembler.convertAsyncToDTOs(
       relationQueryBuilder.selectAndExecute(dto, assembler.convertQuery(query)),
     );
@@ -113,24 +104,15 @@ export abstract class RelationQueryService<Entity extends object> {
     dto: Entity | Entity[],
     filter: Filter<Relation>,
     aggregate: AggregateQuery<Relation>,
-  ): Promise<
-    AggregateResponse<Relation>[] | Map<Entity, AggregateResponse<Relation>[]>
-  > {
+  ): Promise<AggregateResponse<Relation>[] | Map<Entity, AggregateResponse<Relation>[]>> {
     if (Array.isArray(dto)) {
-      return this.batchAggregateRelations(
-        RelationClass,
-        relationName,
-        dto,
-        filter,
-        aggregate,
-      );
+      return this.batchAggregateRelations(RelationClass, relationName, dto, filter, aggregate);
     }
     const assembler = AssemblerFactory.getAssembler(
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const rawResults = await relationQueryBuilder.aggregate(
       dto,
       assembler.convertQuery({ filter }),
@@ -170,8 +152,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     return relationQueryBuilder.count(dto, assembler.convertQuery({ filter }));
   }
 
@@ -217,8 +198,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const relations = await relationQueryBuilder.selectAndExecute(dto, {
       filter: opts?.filter,
       paging: { limit: 1 },
@@ -247,15 +227,11 @@ export abstract class RelationQueryService<Entity extends object> {
       opts?.relationFilter,
     );
     if (!this.foundAllRelations(relationIds, relations)) {
-      throw new Error(
-        `Unable to find all ${relationName} to add to ${this.EntityClass.name}`,
-      );
+      throw new Error(`Unable to find all ${relationName} to add to ${this.EntityClass.name}`);
     }
 
     // Get the collection and add relations
-    const collection = (entity as Record<string, unknown>)[
-      relationName
-    ] as Collection<Relation>;
+    const collection = (entity as Record<string, unknown>)[relationName] as Collection<Relation>;
     if (collection && typeof collection.add === 'function') {
       for (const relation of relations) {
         collection.add(relation);
@@ -289,16 +265,12 @@ export abstract class RelationQueryService<Entity extends object> {
     );
     if (relationIds.length) {
       if (!this.foundAllRelations(relationIds, relations)) {
-        throw new Error(
-          `Unable to find all ${relationName} to set on ${this.EntityClass.name}`,
-        );
+        throw new Error(`Unable to find all ${relationName} to set on ${this.EntityClass.name}`);
       }
     }
 
     // Get the collection and set relations
-    const collection = (entity as Record<string, unknown>)[
-      relationName
-    ] as Collection<Relation>;
+    const collection = (entity as Record<string, unknown>)[relationName] as Collection<Relation>;
     if (collection && typeof collection.set === 'function') {
       // Initialize the collection before modifying it (MikroORM requirement)
       await collection.init();
@@ -325,16 +297,10 @@ export abstract class RelationQueryService<Entity extends object> {
   ): Promise<Entity> {
     const entity = await this.getById(id, opts);
     const relation = (
-      await this.getRelations<Relation>(
-        relationName,
-        [relationId],
-        opts?.relationFilter,
-      )
+      await this.getRelations<Relation>(relationName, [relationId], opts?.relationFilter)
     )[0];
     if (!relation) {
-      throw new Error(
-        `Unable to find ${relationName} to set on ${this.EntityClass.name}`,
-      );
+      throw new Error(`Unable to find ${relationName} to set on ${this.EntityClass.name}`);
     }
 
     // Set the relation directly
@@ -365,15 +331,11 @@ export abstract class RelationQueryService<Entity extends object> {
       opts?.relationFilter,
     );
     if (!this.foundAllRelations(relationIds, relations)) {
-      throw new Error(
-        `Unable to find all ${relationName} to remove from ${this.EntityClass.name}`,
-      );
+      throw new Error(`Unable to find all ${relationName} to remove from ${this.EntityClass.name}`);
     }
 
     // Get the collection and remove relations
-    const collection = (entity as Record<string, unknown>)[
-      relationName
-    ] as Collection<Relation>;
+    const collection = (entity as Record<string, unknown>)[relationName] as Collection<Relation>;
     if (collection && typeof collection.remove === 'function') {
       // Initialize the collection before modifying it (MikroORM requirement)
       await collection.init();
@@ -401,16 +363,10 @@ export abstract class RelationQueryService<Entity extends object> {
   ): Promise<Entity> {
     const entity = await this.getById(id, opts);
     const relation = (
-      await this.getRelations<Relation>(
-        relationName,
-        [relationId],
-        opts?.relationFilter,
-      )
+      await this.getRelations<Relation>(relationName, [relationId], opts?.relationFilter)
     )[0];
     if (!relation) {
-      throw new Error(
-        `Unable to find ${relationName} to remove from ${this.EntityClass.name}`,
-      );
+      throw new Error(`Unable to find ${relationName} to remove from ${this.EntityClass.name}`);
     }
     const meta = this.getRelationMeta(relationName);
     if (meta.kind === '1:1' || meta.kind === 'm:1') {
@@ -428,9 +384,7 @@ export abstract class RelationQueryService<Entity extends object> {
       wrap(entity).assign(assignData as any);
     } else {
       // For collections, remove the relation
-      const collection = (entity as Record<string, unknown>)[
-        relationName
-      ] as Collection<Relation>;
+      const collection = (entity as Record<string, unknown>)[relationName] as Collection<Relation>;
       if (collection && typeof collection.remove === 'function') {
         // Initialize the collection before modifying it (MikroORM requirement)
         await collection.init();
@@ -465,8 +419,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler.convertQuery(query);
 
     const results = new Map<Entity, Relation[]>();
@@ -474,10 +427,7 @@ export abstract class RelationQueryService<Entity extends object> {
     // Process each entity and collect its relations
     await Promise.all(
       entities.map(async (entity) => {
-        const relations = await relationQueryBuilder.selectAndExecute(
-          entity,
-          convertedQuery,
-        );
+        const relations = await relationQueryBuilder.selectAndExecute(entity, convertedQuery);
         const relationDtos = assembler.convertToDTOs(relations);
         // Only add to map if there are relations (undefined for entities with no relations)
         if (relationDtos.length > 0) {
@@ -507,8 +457,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler.convertQuery({ filter });
 
     const results = new Map<Entity, AggregateResponse<Relation>[]>();
@@ -520,8 +469,7 @@ export abstract class RelationQueryService<Entity extends object> {
           convertedQuery,
           assembler.convertAggregateQuery(aggregate),
         );
-        const aggResponse =
-          AggregateBuilder.convertToAggregateResponse(rawAggregates);
+        const aggResponse = AggregateBuilder.convertToAggregateResponse(rawAggregates);
         results.set(
           entity,
           aggResponse.map((agg) => assembler.convertAggregateResponse(agg)),
@@ -549,8 +497,7 @@ export abstract class RelationQueryService<Entity extends object> {
       RelationClass,
       this.getRelationEntity(relationName),
     );
-    const relationQueryBuilder =
-      this.getRelationQueryBuilder<Relation>(relationName);
+    const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler.convertQuery({ filter });
 
     const results = new Map<Entity, number>();
@@ -578,15 +525,10 @@ export abstract class RelationQueryService<Entity extends object> {
     dtos: Entity[],
     opts?: FindRelationOptions<Relation>,
   ): Promise<Map<Entity, Relation | undefined>> {
-    const batchResults = await this.batchQueryRelations(
-      RelationClass,
-      relationName,
-      dtos,
-      {
-        paging: { limit: 1 },
-        filter: opts?.filter,
-      },
-    );
+    const batchResults = await this.batchQueryRelations(RelationClass, relationName, dtos, {
+      paging: { limit: 1 },
+      filter: opts?.filter,
+    });
     const results = new Map<Entity, Relation | undefined>();
     // Only add entities that have matching relations to the map
     batchResults.forEach((relations, dto) => {
@@ -601,13 +543,9 @@ export abstract class RelationQueryService<Entity extends object> {
   private getRelationMeta(relationName: string): RelationMetadata {
     const em = this.repo.getEntityManager();
     const metadata = em.getMetadata().get(this.repo.getEntityName());
-    const relationMeta = metadata.relations.find(
-      (r: EntityProperty) => r.name === relationName,
-    );
+    const relationMeta = metadata.relations.find((r: EntityProperty) => r.name === relationName);
     if (!relationMeta) {
-      throw new Error(
-        `Unable to find relation ${relationName} on ${this.EntityClass.name}`,
-      );
+      throw new Error(`Unable to find relation ${relationName} on ${this.EntityClass.name}`);
     }
     return {
       kind: relationMeta.kind as 'm:1' | '1:m' | '1:1' | 'm:n',

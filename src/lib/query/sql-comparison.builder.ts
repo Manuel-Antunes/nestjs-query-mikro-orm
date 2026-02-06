@@ -106,18 +106,12 @@ export class SQLComparisonBuilder<Entity> {
     throw new Error(`Unexpected isNot operator param ${JSON.stringify(val)}`);
   }
 
-  private checkNonEmptyArray<F extends keyof Entity>(
-    val: EntityComparisonField<Entity, F>,
-  ): void {
+  private checkNonEmptyArray<F extends keyof Entity>(val: EntityComparisonField<Entity, F>): void {
     if (!Array.isArray(val)) {
-      throw new Error(
-        `Invalid in value expected an array got ${JSON.stringify(val)}`,
-      );
+      throw new Error(`Invalid in value expected an array got ${JSON.stringify(val)}`);
     }
     if (!val.length) {
-      throw new Error(
-        `Invalid in value expected a non-empty array got ${JSON.stringify(val)}`,
-      );
+      throw new Error(`Invalid in value expected a non-empty array got ${JSON.stringify(val)}`);
     }
   }
 
@@ -155,11 +149,6 @@ export class SQLComparisonBuilder<Entity> {
   private isBetweenVal<F extends keyof Entity>(
     val: EntityComparisonField<Entity, F>,
   ): val is CommonFieldComparisonBetweenType<Entity[F]> {
-    return (
-      val !== null &&
-      typeof val === 'object' &&
-      'lower' in val &&
-      'upper' in val
-    );
+    return val !== null && typeof val === 'object' && 'lower' in val && 'upper' in val;
   }
 }

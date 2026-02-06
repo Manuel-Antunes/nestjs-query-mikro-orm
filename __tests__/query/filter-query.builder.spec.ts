@@ -55,23 +55,15 @@ describe('FilterQueryBuilder', (): void => {
         ],
       };
       const qb = getEntityQueryBuilder(TestEntity);
-      const metadata = qb.repo
-        .getEntityManager()
-        .getMetadata()
-        .get(qb.repo.getEntityName());
-      expect(
-        qb.getReferencedRelationsRecursive(metadata, complexQuery),
-      ).toEqual({
+      const metadata = qb.repo.getEntityManager().getMetadata().get(qb.repo.getEntityName());
+      expect(qb.getReferencedRelationsRecursive(metadata, complexQuery)).toEqual({
         oneTestRelation: { relationOfTestRelation: {} },
       });
     });
 
     it('with nested and / or', () => {
       const qb = getEntityQueryBuilder(TestEntity);
-      const metadata = qb.repo
-        .getEntityManager()
-        .getMetadata()
-        .get(qb.repo.getEntityName());
+      const metadata = qb.repo.getEntityManager().getMetadata().get(qb.repo.getEntityName());
       expect(
         qb.getReferencedRelationsRecursive(metadata, {
           and: [

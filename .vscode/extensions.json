@@ -1,0 +1,12 @@
+{
+  "name": "nestjs-query-mikro-orm",
+  "displayName": "NestJS Query MikroORM",
+  "version": "0.0.1",
+  "publisher": "manuel-antunes",
+  "description": "NestJS Query adapter for MikroORM",
+  "categories": ["Other"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Manuel-Antunes/nestjs-query-mikro-orm"
+  }
+}

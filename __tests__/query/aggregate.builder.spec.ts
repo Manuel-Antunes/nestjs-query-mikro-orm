@@ -19,11 +19,7 @@ describe('AggregateBuilder', (): void => {
   const getSQL = (
     agg: AggregateQuery<TestEntity>,
   ): { sql: string; bindings: readonly unknown[] } => {
-    const selectQueryBuilder = createAggregateBuilder().build(
-      getQueryBuilder(),
-      agg,
-      'TestEntity',
-    );
+    const selectQueryBuilder = createAggregateBuilder().build(getQueryBuilder(), agg, 'TestEntity');
     return selectQueryBuilder.getKnexQuery().toSQL();
   };
 
@@ -68,9 +64,7 @@ describe('AggregateBuilder', (): void => {
           MIN_numberType: 1,
         },
       ];
-      expect(
-        AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult),
-      ).toEqual([
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
         {
           groupBy: { stringType: 'z' },
           count: { testEntityPk: 10 },
@@ -88,9 +82,9 @@ describe('AggregateBuilder', (): void => {
           COUNTtestEntityPk: 10,
         },
       ];
-      expect(() =>
-        AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult),
-      ).toThrow('Unknown aggregate column encountered.');
+      expect(() => AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toThrow(
+        'Unknown aggregate column encountered.',
+      );
     });
   });
 });

@@ -5,14 +5,8 @@ import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { createMikroOrmQueryServiceProviders } from './providers';
 
 export class NestjsQueryMikroOrmModule {
-  static forFeature(
-    entities: EntityName<AnyEntity>[],
-    contextName?: string,
-  ): DynamicModule {
-    const queryServiceProviders = createMikroOrmQueryServiceProviders(
-      entities,
-      contextName,
-    );
+  static forFeature(entities: EntityName<AnyEntity>[], contextName?: string): DynamicModule {
+    const queryServiceProviders = createMikroOrmQueryServiceProviders(entities, contextName);
     const mikroOrmModule = MikroOrmModule.forFeature(entities, contextName);
     return {
       imports: [mikroOrmModule],
