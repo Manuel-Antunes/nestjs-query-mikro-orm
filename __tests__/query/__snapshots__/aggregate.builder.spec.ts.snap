@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AggregateBuilder > should create selects for all aggregate functions 1`] = `"select COUNT(\`TestEntity\`.\`test_entity_pk\`) as "COUNT_testEntityPk", SUM(\`TestEntity\`.\`number_type\`) as "SUM_numberType", AVG(\`TestEntity\`.\`number_type\`) as "AVG_numberType", MAX(\`TestEntity\`.\`string_type\`) as "MAX_stringType", MAX(\`TestEntity\`.\`date_type\`) as "MAX_dateType", MAX(\`TestEntity\`.\`number_type\`) as "MAX_numberType", MIN(\`TestEntity\`.\`string_type\`) as "MIN_stringType", MIN(\`TestEntity\`.\`date_type\`) as "MIN_dateType", MIN(\`TestEntity\`.\`number_type\`) as "MIN_numberType" from \`test_entity\` as \`t0\`"`;
+
+exports[`AggregateBuilder > should create selects for all aggregate functions 2`] = `[]`;
+
+exports[`AggregateBuilder > should create selects for all aggregate functions and group bys 1`] = `"select \`TestEntity\`.\`string_type\` as "GROUP_BY_stringType", \`TestEntity\`.\`bool_type\` as "GROUP_BY_boolType", COUNT(\`TestEntity\`.\`test_entity_pk\`) as "COUNT_testEntityPk" from \`test_entity\` as \`t0\`"`;
+
+exports[`AggregateBuilder > should create selects for all aggregate functions and group bys 2`] = `[]`;

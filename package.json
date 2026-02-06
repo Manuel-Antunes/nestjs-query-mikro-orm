@@ -1,0 +1,57 @@
+{
+  "name": "@nx-ddd/nest-query-mikro-orm",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts",
+      "development": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "camel-case": "^4.1.2",
+    "lodash.filter": "^4.6.0",
+    "lodash.merge": "^4.6.2",
+    "lodash.omit": "^4.5.0"
+  },
+  "devDependencies": {
+    "@mikro-orm/sqlite": "^6.6.3"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "@nx/esbuild:esbuild",
+        "outputs": [
+          "{options.outputPath}"
+        ],
+        "defaultConfiguration": "production",
+        "options": {
+          "main": "libs/database/nest-query-mikro-orm/src/index.ts",
+          "outputPath": "libs/database/nest-query-mikro-orm/dist",
+          "outputFileName": "main.js",
+          "tsConfig": "libs/database/nest-query-mikro-orm/tsconfig.lib.json",
+          "platform": "node",
+          "format": [
+            "esm"
+          ],
+          "declarationRootDir": "libs/database/nest-query-mikro-orm/src"
+        },
+        "configurations": {
+          "development": {
+            "minify": false
+          },
+          "production": {
+            "minify": true
+          }
+        }
+      }
+    }
+  },
+  "module": "./dist/main.js",
+  "type": "module"
+}
