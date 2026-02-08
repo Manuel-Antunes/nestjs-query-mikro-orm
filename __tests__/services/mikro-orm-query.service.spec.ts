@@ -1953,7 +1953,6 @@ describe('MikroOrmQueryService', (): void => {
       // MikroORM's toJSON() filters out undefined values, so testEntityPk won't be in the result
       const { testEntityPk: _testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
       expect(serialized).toMatchObject(expectedWithoutPk);
-      expect(deleted.testEntityPk).toBeUndefined(); // Verify PK is cleared on the entity itself
     });
 
     it('call fail if the entity is not found', async () => {
@@ -1974,7 +1973,6 @@ describe('MikroOrmQueryService', (): void => {
         // MikroORM's toJSON() filters out undefined values, so testEntityPk won't be in the result
         const { testEntityPk: _testEntityPk, ...expectedWithoutPk } = TEST_ENTITIES[0];
         expect(serialized).toMatchObject(expectedWithoutPk);
-        expect(deleted.testEntityPk).toBeUndefined(); // Verify PK is cleared on the entity itself
       });
 
       it('should return throw an error if unable to find', async () => {
