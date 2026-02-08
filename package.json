@@ -1,6 +1,6 @@
 {
   "name": "nestjs-query-mikro-orm",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "NestJS Query adapter for MikroORM",
   "author": "Manuel Antunes",
   "license": "MIT",

@@ -292,10 +292,6 @@ export class MikroOrmQueryService<Entity extends object>
       await em.flush();
     } else {
       await em.remove(entity).flush();
-      // Clear the primary key to match TypeORM behavior (sets PK to undefined after deletion)
-      const metadata = this.em.getMetadata().get(this.repo.getEntityName());
-      const primaryKey = metadata.primaryKeys[0];
-      (entity as Record<string, unknown>)[primaryKey] = undefined;
     }
     return entity;
   }
