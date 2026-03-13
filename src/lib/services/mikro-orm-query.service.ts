@@ -230,10 +230,13 @@ export class MikroOrmQueryService<Entity extends object>
     update: DeepPartial<Entity>,
     opts?: UpdateOneOptions<Entity>,
   ): Promise<Entity> {
-    this.ensureIdIsNotPresent(update);
+    const dateWithClearUndefined = Object.fromEntries(
+      Object.entries(update).filter(([, value]) => value !== undefined),
+    ) as DeepPartial<Entity>;
+    this.ensureIdIsNotPresent(dateWithClearUndefined);
     const entity = await this.getById(id, opts);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wrap(entity).assign(update as any);
+    wrap(entity).assign(dateWithClearUndefined as any);
     await this.repo.getEntityManager().flush();
     return entity;
   }
