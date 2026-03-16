@@ -1,12 +1,12 @@
+import { Collection } from '@mikro-orm/core';
 import {
-  Collection,
   Entity,
   ManyToMany,
   OneToMany,
   OneToOne,
   PrimaryKey,
   Property,
-} from '@mikro-orm/core';
+} from '@mikro-orm/decorators/legacy';
 import { Exclude } from 'class-transformer';
 
 import { TestEntityRelationEntity } from './test-entity-relation.entity';

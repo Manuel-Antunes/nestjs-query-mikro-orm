@@ -1,112 +1,250 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`WhereBuilder > and > and multiple expressions together 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where \`t0\`.\`number_type\` > ? and \`t0\`.\`number_type\` < ? and \`t0\`.\`number_type\` >= ? and \`t0\`.\`number_type\` <= ?"`;
-
-exports[`WhereBuilder > and > and multiple expressions together 2`] = `
-[
-  10,
-  20,
-  30,
-  40,
-]
+exports[`WhereBuilder > and > and multiple expressions together 1`] = `
+{
+  "$and": [
+    {
+      "numberType": {
+        "$gt": 10,
+      },
+    },
+    {
+      "numberType": {
+        "$lt": 20,
+      },
+    },
+    {
+      "numberType": {
+        "$gte": 30,
+      },
+    },
+    {
+      "numberType": {
+        "$lte": 40,
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > and > and multiple filters together with multiple fields 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where \`t0\`.\`number_type\` > ? and \`t0\`.\`string_type\` like ? and \`t0\`.\`number_type\` < ? and \`t0\`.\`string_type\` like ?"`;
-
-exports[`WhereBuilder > and > and multiple filters together with multiple fields 2`] = `
-[
-  10,
-  "foo%",
-  20,
-  "%bar",
-]
+exports[`WhereBuilder > and > and multiple filters together with multiple fields 1`] = `
+{
+  "$and": [
+    {
+      "numberType": {
+        "$gt": 10,
+      },
+      "stringType": {
+        "$like": "foo%",
+      },
+    },
+    {
+      "numberType": {
+        "$lt": 20,
+      },
+      "stringType": {
+        "$like": "%bar",
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > and > should properly group AND with a sibling field comparison 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where \`t0\`.\`number_type\` > ? and \`t0\`.\`number_type\` < ? and \`t0\`.\`string_type\` = ?"`;
-
-exports[`WhereBuilder > and > should properly group AND with a sibling field comparison 2`] = `
-[
-  2,
-  10,
-  "foo",
-]
+exports[`WhereBuilder > and > should properly group AND with a sibling field comparison 1`] = `
+{
+  "$and": [
+    {
+      "$and": [
+        {
+          "numberType": {
+            "$gt": 2,
+          },
+        },
+        {
+          "numberType": {
+            "$lt": 10,
+          },
+        },
+      ],
+    },
+    {
+      "stringType": {
+        "$eq": "foo",
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > and > should support nested ors 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where (\`t0\`.\`number_type\` > ? or \`t0\`.\`number_type\` < ?) and (\`t0\`.\`number_type\` >= ? or \`t0\`.\`number_type\` <= ?)"`;
-
-exports[`WhereBuilder > and > should support nested ors 2`] = `
-[
-  10,
-  20,
-  30,
-  40,
-]
+exports[`WhereBuilder > and > should support nested ors 1`] = `
+{
+  "$and": [
+    {
+      "$or": [
+        {
+          "numberType": {
+            "$gt": 10,
+          },
+        },
+        {
+          "numberType": {
+            "$lt": 20,
+          },
+        },
+      ],
+    },
+    {
+      "$or": [
+        {
+          "numberType": {
+            "$gte": 30,
+          },
+        },
+        {
+          "numberType": {
+            "$lte": 40,
+          },
+        },
+      ],
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > and multiple field comparisons together 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where \`t0\`.\`number_type\` = ? and \`t0\`.\`string_type\` like ? and \`t0\`.\`bool_type\` = ?"`;
-
-exports[`WhereBuilder > and multiple field comparisons together 2`] = `
-[
-  1,
-  "foo%",
-  true,
-]
+exports[`WhereBuilder > and multiple field comparisons together 1`] = `
+{
+  "boolType": {
+    "$eq": true,
+  },
+  "numberType": {
+    "$eq": 1,
+  },
+  "stringType": {
+    "$like": "foo%",
+  },
+}
 `;
 
-exports[`WhereBuilder > or > and multiple and filters together 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where ((\`t0\`.\`number_type\` > ? and \`t0\`.\`string_type\` like ?) or (\`t0\`.\`number_type\` < ? and \`t0\`.\`string_type\` like ?))"`;
-
-exports[`WhereBuilder > or > and multiple and filters together 2`] = `
-[
-  10,
-  "foo%",
-  20,
-  "%bar",
-]
+exports[`WhereBuilder > or > and multiple and filters together 1`] = `
+{
+  "$or": [
+    {
+      "numberType": {
+        "$gt": 10,
+      },
+      "stringType": {
+        "$like": "foo%",
+      },
+    },
+    {
+      "numberType": {
+        "$lt": 20,
+      },
+      "stringType": {
+        "$like": "%bar",
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > or > or multiple expressions together 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where (\`t0\`.\`number_type\` > ? or \`t0\`.\`number_type\` < ? or \`t0\`.\`number_type\` >= ? or \`t0\`.\`number_type\` <= ?)"`;
-
-exports[`WhereBuilder > or > or multiple expressions together 2`] = `
-[
-  10,
-  20,
-  30,
-  40,
-]
+exports[`WhereBuilder > or > or multiple expressions together 1`] = `
+{
+  "$or": [
+    {
+      "numberType": {
+        "$gt": 10,
+      },
+    },
+    {
+      "numberType": {
+        "$lt": 20,
+      },
+    },
+    {
+      "numberType": {
+        "$gte": 30,
+      },
+    },
+    {
+      "numberType": {
+        "$lte": 40,
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > or > should properly group OR with a sibling field comparison 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where (\`t0\`.\`number_type\` = ? or \`t0\`.\`number_type\` > ?) and \`t0\`.\`string_type\` = ?"`;
-
-exports[`WhereBuilder > or > should properly group OR with a sibling field comparison 2`] = `
-[
-  2,
-  10,
-  "foo",
-]
+exports[`WhereBuilder > or > should properly group OR with a sibling field comparison 1`] = `
+{
+  "$and": [
+    {
+      "$or": [
+        {
+          "numberType": {
+            "$eq": 2,
+          },
+        },
+        {
+          "numberType": {
+            "$gt": 10,
+          },
+        },
+      ],
+    },
+    {
+      "stringType": {
+        "$eq": "foo",
+      },
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > or > should support nested ands 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where ((\`t0\`.\`number_type\` > ? and \`t0\`.\`number_type\` < ?) or (\`t0\`.\`number_type\` >= ? and \`t0\`.\`number_type\` <= ?))"`;
-
-exports[`WhereBuilder > or > should support nested ands 2`] = `
-[
-  10,
-  20,
-  30,
-  40,
-]
+exports[`WhereBuilder > or > should support nested ands 1`] = `
+{
+  "$or": [
+    {
+      "$and": [
+        {
+          "numberType": {
+            "$gt": 10,
+          },
+        },
+        {
+          "numberType": {
+            "$lt": 20,
+          },
+        },
+      ],
+    },
+    {
+      "$and": [
+        {
+          "numberType": {
+            "$gte": 30,
+          },
+        },
+        {
+          "numberType": {
+            "$lte": 40,
+          },
+        },
+      ],
+    },
+  ],
+}
 `;
 
-exports[`WhereBuilder > or multiple operators for a single field together 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\` where \`t0\`.\`number_type\` > ? and \`t0\`.\`number_type\` < ? and \`t0\`.\`number_type\` >= ? and \`t0\`.\`number_type\` <= ?"`;
-
-exports[`WhereBuilder > or multiple operators for a single field together 2`] = `
-[
-  10,
-  20,
-  21,
-  31,
-]
+exports[`WhereBuilder > or multiple operators for a single field together 1`] = `
+{
+  "numberType": {
+    "$gt": 10,
+    "$gte": 21,
+    "$lt": 20,
+    "$lte": 31,
+  },
+}
 `;
 
-exports[`WhereBuilder > should accept a empty filter 1`] = `"select \`t0\`.* from \`test_entity\` as \`t0\`"`;
-
-exports[`WhereBuilder > should accept a empty filter 2`] = `[]`;
+exports[`WhereBuilder > should accept a empty filter 1`] = `{}`;

@@ -1,5 +1,5 @@
 import type { Collection, EntityName, EntityProperty, FilterQuery } from '@mikro-orm/core';
-import type { EntityRepository } from '@mikro-orm/knex';
+import type { EntityRepository } from '@mikro-orm/core';
 import type {
   AggregateQuery,
   AggregateResponse,
@@ -542,7 +542,7 @@ export abstract class RelationQueryService<Entity extends object> {
 
   private getRelationMeta(relationName: string): RelationMetadata {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName());
+    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
     const relationMeta = metadata.relations.find((r: EntityProperty) => r.name === relationName);
     if (!relationMeta) {
       throw new Error(`Unable to find relation ${relationName} on ${this.EntityClass.name}`);
@@ -581,10 +581,10 @@ export abstract class RelationQueryService<Entity extends object> {
       ) as FilterQuery<Relation>;
       return em.find(RelationEntity, {
         $and: [idFilter, additionalFilter],
-      } as FilterQuery<Relation>);
+      } as any);
     }
 
-    return em.find(RelationEntity, idFilter);
+    return em.find(RelationEntity, idFilter as any);
   }
 
   private foundAllRelations<Relation>(

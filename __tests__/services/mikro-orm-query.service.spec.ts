@@ -1,4 +1,5 @@
-import type { EntityRepository } from '@mikro-orm/knex';
+import type { EntityRepository } from '@mikro-orm/core';
+import { describe, expect, it, afterEach, beforeEach } from 'vitest';
 import type { Filter } from '@nestjs-query/core';
 import type { TestingModule } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
@@ -89,7 +90,7 @@ describe('MikroOrmQueryService', (): void => {
 
     // Create schema and seed data using the NestJS managed ORM instance
     orm = moduleRef.get(MikroORM);
-    await orm.schema.createSchema();
+    await orm.schema.create();
     await seed(orm);
   });
 
@@ -206,7 +207,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               testEntity: {
                 testEntityPk: {
-                  in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
+                  in: [TEST_ENTITIES[0].testEntityPk!, TEST_ENTITIES[1].testEntityPk!],
                 },
               },
             },
@@ -224,7 +225,7 @@ describe('MikroOrmQueryService', (): void => {
             filter: {
               testEntityUniDirectional: {
                 testEntityPk: {
-                  in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
+                  in: [TEST_ENTITIES[0].testEntityPk!, TEST_ENTITIES[1].testEntityPk!],
                 },
               },
             },
@@ -245,7 +246,7 @@ describe('MikroOrmQueryService', (): void => {
                 {
                   testEntity: {
                     testEntityPk: {
-                      in: [TEST_ENTITIES[0].testEntityPk, TEST_ENTITIES[1].testEntityPk],
+                      in: [TEST_ENTITIES[0].testEntityPk!, TEST_ENTITIES[1].testEntityPk!],
                     },
                   },
                 },
@@ -656,7 +657,7 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           {},
         );
         const serialized = queryResult;
@@ -672,7 +673,7 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           {
             filter: { testRelationPk: { like: '%-1' } },
           },
@@ -688,7 +689,7 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           {
             paging: { limit: 2, offset: 1 },
           },
@@ -705,14 +706,19 @@ describe('MikroOrmQueryService', (): void => {
           const entity = TEST_ENTITIES[2];
           const queryService = moduleRef.get(TestEntityService);
           const queryResult = (
-            await queryService.queryRelations(TestRelation, 'manyToManyUniDirectional', entity, {})
+            await queryService.queryRelations(
+              TestRelation,
+              'manyToManyUniDirectional',
+              entity as TestEntity,
+              {},
+            )
           ).map((r: TestRelation) => {
             delete r.relationOfTestRelationId;
             return r;
           });
           const serialized = queryResult;
 
-          TEST_RELATIONS.filter((tr) => tr.relationName.endsWith('three')).forEach((tr) => {
+          TEST_RELATIONS.filter((tr) => tr.relationName?.endsWith('three')).forEach((tr) => {
             expect(serialized).toEqual(expect.arrayContaining([expect.objectContaining(tr)]));
           });
         });
@@ -726,13 +732,13 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          entities,
+          entities as TestEntity[],
           {},
         );
 
-        expect(queryResult.size).toBe(3);
+        expect((queryResult as Map<any, any>).size).toBe(3);
         entities.forEach((e) => {
-          const relations = queryResult.get(e);
+          const relations = (queryResult as Map<any, TestRelation[]>).get(e as TestEntity);
           const serialized = relations;
           expect(serialized).toHaveLength(3);
         });
@@ -744,15 +750,15 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          entities,
+          entities as TestEntity[],
           {
             filter: { testRelationPk: { like: '%-1' } },
           },
         );
 
-        expect(queryResult.size).toBe(3);
+        expect((queryResult as Map<any, any>).size).toBe(3);
         entities.forEach((e) => {
-          const relations = queryResult.get(e);
+          const relations = (queryResult as Map<any, TestRelation[]>).get(e as TestEntity);
           const serialized = relations;
           expect(serialized).toHaveLength(1);
         });
@@ -764,15 +770,15 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.queryRelations(
           TestRelation,
           'testRelations',
-          entities,
+          entities as TestEntity[],
           {
             paging: { limit: 2, offset: 1 },
           },
         );
 
-        expect(queryResult.size).toBe(3);
+        expect((queryResult as Map<any, any>).size).toBe(3);
         entities.forEach((e) => {
-          const relations = queryResult.get(e);
+          const relations = (queryResult as Map<any, TestRelation[]>).get(e as TestEntity);
           const serialized = relations;
           expect(serialized).toHaveLength(2);
         });
@@ -780,7 +786,7 @@ describe('MikroOrmQueryService', (): void => {
 
       it('should return an empty array if no results are found.', async () => {
         const entities: TestEntity[] = [
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           { testEntityPk: 'does-not-exist' } as TestEntity,
         ];
         const queryService = moduleRef.get(TestEntityService);
@@ -793,11 +799,11 @@ describe('MikroOrmQueryService', (): void => {
           },
         );
 
-        expect(queryResult.size).toBe(1); // Only includes entities with relations
-        const result0 = queryResult.get(entities[0]);
+        expect((queryResult as Map<any, any>).size).toBe(1); // Only includes entities with relations
+        const result0 = (queryResult as Map<any, TestRelation[]>).get(entities[0]);
         const serialized = result0;
         expect(serialized).toHaveLength(3);
-        expect(queryResult.get(entities[1])).toBeUndefined();
+        expect((queryResult as Map<any, TestRelation[]>).get(entities[1])).toBeUndefined();
       });
     });
   });
@@ -809,7 +815,7 @@ describe('MikroOrmQueryService', (): void => {
         const aggResult = await queryService.aggregateRelations(
           TestRelation,
           'testRelations',
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           {},
           { count: ['testRelationPk'] },
         );
@@ -827,7 +833,7 @@ describe('MikroOrmQueryService', (): void => {
         const aggResult = await queryService.aggregateRelations(
           TestRelation,
           'testRelations',
-          TEST_ENTITIES[0],
+          TEST_ENTITIES[0] as TestEntity,
           { testRelationPk: { like: '%-1' } },
           { count: ['testRelationPk'] },
         );
@@ -848,7 +854,7 @@ describe('MikroOrmQueryService', (): void => {
         const queryResult = await queryService.aggregateRelations(
           TestRelation,
           'testRelations',
-          entities,
+          entities as TestEntity[],
           {},
           {
             count: ['testRelationPk', 'relationName', 'testEntityId'],
@@ -857,7 +863,7 @@ describe('MikroOrmQueryService', (): void => {
           },
         );
 
-        expect(queryResult.size).toBe(3);
+        expect((queryResult as Map<any, any>).size).toBe(3);
         expect(queryResult).toEqual(
           new Map([
             [

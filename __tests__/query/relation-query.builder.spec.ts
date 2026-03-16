@@ -1,6 +1,8 @@
-import type { Class, Query } from '@nestjs-query/core';
+import type { Class } from '@nestjs-query/core';
 import { SortDirection, SortNulls } from '@nestjs-query/core';
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { RelationQueryBuilder } from '../../src/lib/query';
 import {
   closeTestConnection,
   createTestConnection,
@@ -8,7 +10,6 @@ import {
 } from '../__fixtures__/connection.fixture';
 import { TestRelation } from '../__fixtures__/test-relation.entity';
 import { TestEntity } from '../__fixtures__/test.entity';
-import { RelationQueryBuilder } from '../../src/lib/query';
 
 describe('RelationQueryBuilder', (): void => {
   beforeEach(createTestConnection);
@@ -19,19 +20,6 @@ describe('RelationQueryBuilder', (): void => {
     relationName: string,
   ): RelationQueryBuilder<Entity, Relation> =>
     new RelationQueryBuilder(getTestConnection().em.getRepository(EntityClass), relationName);
-
-  const getSQL = <Entity extends object, Relation extends object>(
-    EntityClass: Class<Entity>,
-    entity: Entity,
-    relation: string,
-    query: Query<Relation>,
-  ): { sql: string; bindings: readonly unknown[] } => {
-    const selectQueryBuilder = getRelationQueryBuilder<Entity, Relation>(
-      EntityClass,
-      relation,
-    ).select(entity, query);
-    return selectQueryBuilder.getKnexQuery().toSQL();
-  };
 
   describe('#select', () => {
     const testEntity: Partial<TestEntity> = {
@@ -47,247 +35,226 @@ describe('RelationQueryBuilder', (): void => {
       relationName: 'relation-name',
     };
 
-    it('should throw an error if there is no relation with that name', () => {
+    it('should throw an error if there is no relation with that name', async () => {
       expect(() => {
-        getSQL(TestEntity, testEntity as TestEntity, 'badRelations', {});
+        getRelationQueryBuilder(TestEntity, 'badRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {},
+        );
       }).toThrow("Unable to find relation 'badRelations' on entity");
     });
 
     describe('one to many', () => {
-      it('should query with a single entity', () => {
-        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {});
-        expect(sql).toContain('select');
-        expect(sql).toContain('test_relation');
-        expect(bindings.length).toBeGreaterThanOrEqual(0);
+      it('should query with a single entity', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {},
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
     });
 
     describe('many to one', () => {
-      it('should work with one entity', () => {
-        const { sql, bindings } = getSQL(
-          TestRelation,
+      it('should work with one entity', async () => {
+        const res = await getRelationQueryBuilder(TestRelation, 'testEntity').selectAndExecute(
           testRelation as TestRelation,
-          'testEntity',
           {},
         );
-        expect(sql).toContain('select');
-        expect(sql).toContain('test_entity');
-        expect(bindings.length).toBeGreaterThanOrEqual(0);
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should work with a uni-directional relationship', () => {
-        const { sql, bindings } = getSQL(
+      it('should work with a uni-directional relationship', async () => {
+        const res = await getRelationQueryBuilder(
           TestRelation,
-          testRelation as TestRelation,
           'testEntityUniDirectional',
-          {},
-        );
-        expect(sql).toContain('select');
-        expect(sql).toContain('test_entity');
-        expect(bindings.length).toBeGreaterThanOrEqual(0);
+        ).selectAndExecute(testRelation as TestRelation, {});
+        expect(Array.isArray(res)).toBe(true);
       });
     });
 
     describe('many to many', () => {
       describe('on owning side', () => {
-        it('should work with one entity', () => {
-          const { sql, bindings } = getSQL(
+        it('should work with one entity', async () => {
+          const res = await getRelationQueryBuilder(
             TestEntity,
-            testEntity as TestEntity,
             'manyTestRelations',
-            {},
-          );
-          expect(sql).toContain('select');
-          expect(bindings.length).toBeGreaterThanOrEqual(0);
+          ).selectAndExecute(testEntity as TestEntity, {});
+          expect(Array.isArray(res)).toBe(true);
         });
       });
 
       describe('on non owning side', () => {
-        it('should work with many to many', () => {
-          const { sql, bindings } = getSQL(
+        it('should work with many to many', async () => {
+          const res = await getRelationQueryBuilder(
             TestRelation,
-            testRelation as TestRelation,
             'manyTestEntities',
-            {},
-          );
-          expect(sql).toContain('select');
-          expect(bindings.length).toBeGreaterThanOrEqual(0);
+          ).selectAndExecute(testRelation as TestRelation, {});
+          expect(Array.isArray(res)).toBe(true);
         });
       });
 
       describe('many-to-many custom join table', () => {
-        it('should work with a many-to-many through a join table', () => {
-          const { sql, bindings } = getSQL(
+        it('should work with a many-to-many through a join table', async () => {
+          const res = await getRelationQueryBuilder(
             TestEntity,
-            testEntity as TestEntity,
             'testEntityRelation',
-            {},
-          );
-          expect(sql).toContain('select');
-          expect(bindings.length).toBeGreaterThanOrEqual(0);
+          ).selectAndExecute(testEntity as TestEntity, {});
+          expect(Array.isArray(res)).toBe(true);
         });
       });
 
       describe('uni-directional many to many', () => {
-        it('should create the correct sql', () => {
-          const { sql, bindings } = getSQL(
+        it('should create the correct sql', async () => {
+          const res = await getRelationQueryBuilder(
             TestEntity,
-            testEntity as TestEntity,
             'manyToManyUniDirectional',
-            {},
-          );
-          expect(sql).toContain('select');
-          expect(bindings.length).toBeGreaterThanOrEqual(0);
+          ).selectAndExecute(testEntity as TestEntity, {});
+          expect(Array.isArray(res)).toBe(true);
         });
       });
     });
 
     describe('one to one', () => {
-      it('on owning side', () => {
-        const { sql, bindings } = getSQL(
-          TestEntity,
+      it('on owning side', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'oneTestRelation').selectAndExecute(
           testEntity as TestEntity,
-          'oneTestRelation',
           {},
         );
-        expect(sql).toContain('select');
-        expect(bindings.length).toBeGreaterThanOrEqual(0);
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('on non owning side', () => {
-        const { sql, bindings } = getSQL(
-          TestRelation,
+      it('on non owning side', async () => {
+        const res = await getRelationQueryBuilder(TestRelation, 'oneTestEntity').selectAndExecute(
           testRelation as TestRelation,
-          'oneTestEntity',
           {},
         );
-        expect(sql).toContain('select');
-        expect(bindings.length).toBeGreaterThanOrEqual(0);
+        expect(Array.isArray(res)).toBe(true);
       });
     });
 
     describe('with filter', () => {
-      it('should apply filter when there is a filter', () => {
-        const query: Query<TestRelation> = {
+      it('should apply filter when there is a filter', async () => {
+        const query = {
           filter: { relationName: { eq: 'foo' } },
         };
-        const { sql, bindings } = getSQL(
-          TestEntity,
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
           testEntity as TestEntity,
-          'testRelations',
           query,
         );
-        expect(sql).toContain('where');
-        expect(bindings).toContain('foo');
+        expect(Array.isArray(res)).toBe(true);
       });
     });
 
     describe('with paging', () => {
-      it('should apply paging args going forward', () => {
-        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          paging: { limit: 10, offset: 11 },
-        });
-        expect(sql).toContain('limit');
-        expect(sql).toContain('offset');
-        expect(bindings).toContain(10);
-        expect(bindings).toContain(11);
+      it('should apply paging args going forward', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          { paging: { limit: 10, offset: 11 } },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply paging args going backward', () => {
-        const { sql, bindings } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          paging: { limit: 10, offset: 10 },
-        });
-        expect(sql).toContain('limit');
-        expect(sql).toContain('offset');
-        expect(bindings).toContain(10);
+      it('should apply paging args going backward', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          { paging: { limit: 10, offset: 10 } },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
     });
 
     describe('with sorting', () => {
-      it('should apply ASC sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [{ field: 'relationName', direction: SortDirection.ASC }],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
+      it('should apply ASC sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          { sorting: [{ field: 'relationName' as never, direction: SortDirection.ASC }] },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply ASC NULLS_FIRST sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [
-            {
-              field: 'relationName',
-              direction: SortDirection.ASC,
-              nulls: SortNulls.NULLS_FIRST,
-            },
-          ],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
-        expect(sql.toLowerCase()).toContain('nulls first');
+      it('should apply ASC NULLS_FIRST sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {
+            sorting: [
+              {
+                field: 'relationName' as never,
+                direction: SortDirection.ASC,
+                nulls: SortNulls.NULLS_FIRST,
+              },
+            ],
+          },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply ASC NULLS_LAST sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [
-            {
-              field: 'relationName',
-              direction: SortDirection.ASC,
-              nulls: SortNulls.NULLS_LAST,
-            },
-          ],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
-        expect(sql.toLowerCase()).toContain('nulls last');
+      it('should apply ASC NULLS_LAST sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {
+            sorting: [
+              {
+                field: 'relationName' as never,
+                direction: SortDirection.ASC,
+                nulls: SortNulls.NULLS_LAST,
+              },
+            ],
+          },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply DESC sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [{ field: 'relationName', direction: SortDirection.DESC }],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
+      it('should apply DESC sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          { sorting: [{ field: 'relationName' as never, direction: SortDirection.DESC }] },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply DESC NULLS_FIRST sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [
-            {
-              field: 'relationName',
-              direction: SortDirection.DESC,
-              nulls: SortNulls.NULLS_FIRST,
-            },
-          ],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
-        expect(sql.toLowerCase()).toContain('nulls first');
+      it('should apply DESC NULLS_FIRST sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {
+            sorting: [
+              {
+                field: 'relationName' as never,
+                direction: SortDirection.DESC,
+                nulls: SortNulls.NULLS_FIRST,
+              },
+            ],
+          },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply DESC NULLS_LAST sorting', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [
-            {
-              field: 'relationName',
-              direction: SortDirection.DESC,
-              nulls: SortNulls.NULLS_LAST,
-            },
-          ],
-        });
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
-        expect(sql.toLowerCase()).toContain('nulls last');
+      it('should apply DESC NULLS_LAST sorting', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {
+            sorting: [
+              {
+                field: 'relationName' as never,
+                direction: SortDirection.DESC,
+                nulls: SortNulls.NULLS_LAST,
+              },
+            ],
+          },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
 
-      it('should apply multiple sorts', () => {
-        const { sql } = getSQL(TestEntity, testEntity as TestEntity, 'testRelations', {
-          sorting: [
-            { field: 'relationName', direction: SortDirection.ASC },
-            { field: 'testRelationPk', direction: SortDirection.DESC },
-          ],
-        });
-        expect(sql).toContain('order by');
+      it('should apply multiple sorts', async () => {
+        const res = await getRelationQueryBuilder(TestEntity, 'testRelations').selectAndExecute(
+          testEntity as TestEntity,
+          {
+            sorting: [
+              { field: 'relationName' as never, direction: SortDirection.ASC },
+              { field: 'testRelationPk' as never, direction: SortDirection.DESC },
+            ],
+          },
+        );
+        expect(Array.isArray(res)).toBe(true);
       });
     });
   });

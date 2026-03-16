@@ -1,56 +1,42 @@
-import type { QBFilterQuery } from '@mikro-orm/core';
 import type { Filter } from '@nestjs-query/core';
 
-import {
-  closeTestConnection,
-  createTestConnection,
-  getTestConnection,
-} from '../__fixtures__/connection.fixture';
-import { TestEntity } from '../__fixtures__/test.entity';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WhereBuilder } from '../../src/lib/query';
+import { closeTestConnection, createTestConnection } from '../__fixtures__/connection.fixture';
+import { TestEntity } from '../__fixtures__/test.entity';
 
 describe('WhereBuilder', (): void => {
   beforeEach(createTestConnection);
   afterEach(closeTestConnection);
 
-  const getRepo = () => getTestConnection().em.getRepository(TestEntity);
-  const getQueryBuilder = () => getRepo().createQueryBuilder();
   const createWhereBuilder = () => new WhereBuilder<TestEntity>();
 
-  const getSQL = (filter: Filter<TestEntity>): { sql: string; bindings: readonly unknown[] } => {
-    const mikroOrmFilter = createWhereBuilder().build(filter);
-    const qb = getQueryBuilder();
-    qb.where(mikroOrmFilter as QBFilterQuery<TestEntity>);
-    return qb.getKnexQuery().toSQL();
-  };
+  const buildFilter = (filter: Filter<TestEntity>) => createWhereBuilder().build(filter);
 
   it('should accept a empty filter', (): void => {
-    const { sql, bindings } = getSQL({});
-    expect(sql).toMatchSnapshot();
-    expect(bindings).toMatchSnapshot();
+    const mikroOrmFilter = buildFilter({});
+    expect(mikroOrmFilter).toMatchSnapshot();
   });
 
   it('or multiple operators for a single field together', (): void => {
-    const { sql, bindings } = getSQL({
+    const mikroOrmFilter = buildFilter({
       numberType: { gt: 10, lt: 20, gte: 21, lte: 31 },
     });
-    expect(sql).toMatchSnapshot();
-    expect(bindings).toMatchSnapshot();
+    expect(mikroOrmFilter).toMatchSnapshot();
   });
 
   it('and multiple field comparisons together', (): void => {
-    const { sql, bindings } = getSQL({
+    const mikroOrmFilter = buildFilter({
       numberType: { eq: 1 },
       stringType: { like: 'foo%' },
       boolType: { is: true },
     });
-    expect(sql).toMatchSnapshot();
-    expect(bindings).toMatchSnapshot();
+    expect(mikroOrmFilter).toMatchSnapshot();
   });
 
   describe('and', (): void => {
     it('and multiple expressions together', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         and: [
           { numberType: { gt: 10 } },
           { numberType: { lt: 20 } },
@@ -58,45 +44,41 @@ describe('WhereBuilder', (): void => {
           { numberType: { lte: 40 } },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('and multiple filters together with multiple fields', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         and: [
           { numberType: { gt: 10 }, stringType: { like: 'foo%' } },
           { numberType: { lt: 20 }, stringType: { like: '%bar' } },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('should support nested ors', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         and: [
           { or: [{ numberType: { gt: 10 } }, { numberType: { lt: 20 } }] },
           { or: [{ numberType: { gte: 30 } }, { numberType: { lte: 40 } }] },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('should properly group AND with a sibling field comparison', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         and: [{ numberType: { gt: 2 } }, { numberType: { lt: 10 } }],
         stringType: { eq: 'foo' },
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
   });
 
   describe('or', (): void => {
     it('or multiple expressions together', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         or: [
           { numberType: { gt: 10 } },
           { numberType: { lt: 20 } },
@@ -104,39 +86,35 @@ describe('WhereBuilder', (): void => {
           { numberType: { lte: 40 } },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('and multiple and filters together', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         or: [
           { numberType: { gt: 10 }, stringType: { like: 'foo%' } },
           { numberType: { lt: 20 }, stringType: { like: '%bar' } },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('should support nested ands', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         or: [
           { and: [{ numberType: { gt: 10 } }, { numberType: { lt: 20 } }] },
           { and: [{ numberType: { gte: 30 } }, { numberType: { lte: 40 } }] },
         ],
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
 
     it('should properly group OR with a sibling field comparison', (): void => {
-      const { sql, bindings } = getSQL({
+      const mikroOrmFilter = buildFilter({
         or: [{ numberType: { eq: 2 } }, { numberType: { gt: 10 } }],
         stringType: { eq: 'foo' },
       });
-      expect(sql).toMatchSnapshot();
-      expect(bindings).toMatchSnapshot();
+      expect(mikroOrmFilter).toMatchSnapshot();
     });
   });
 });

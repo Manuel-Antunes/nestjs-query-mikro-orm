@@ -1,7 +1,7 @@
-import { Entity, ManyToOne, PrimaryKey, PrimaryKeyProp } from '@mikro-orm/core';
-
+import { Entity, ManyToOne, PrimaryKey } from '@mikro-orm/decorators/legacy';
 import { TestRelation } from './test-relation.entity';
 import { TestEntity } from './test.entity';
+import { PrimaryKeyProp } from '@mikro-orm/core';
 
 @Entity({ tableName: 'test_entity_relation_entity' })
 export class TestEntityRelationEntity {

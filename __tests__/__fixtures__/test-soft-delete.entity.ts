@@ -1,5 +1,4 @@
-import { Entity, Filter, PrimaryKey, Property } from '@mikro-orm/core';
-
+import { Entity, Filter, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
 @Entity({ tableName: 'test_soft_delete_entity' })
 @Filter({ name: 'softDelete', cond: { deletedAt: null }, default: true })
 export class TestSoftDeleteEntity {

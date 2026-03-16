@@ -1,9 +1,8 @@
 import type { EntityMetadata } from '@mikro-orm/core';
-import type { QueryBuilder } from '@mikro-orm/knex';
+import type { QueryBuilder } from './types';
 import type { AggregateQuery, AggregateResponse } from '@nestjs-query/core';
 import { raw } from '@mikro-orm/core';
 import { BadRequestException } from '@nestjs/common';
-import { camelCase } from 'camel-case';
 
 enum AggregateFuncs {
   AVG = 'AVG',
@@ -13,13 +12,47 @@ enum AggregateFuncs {
   MIN = 'MIN',
 }
 
-const AGG_REGEXP = /(AVG|SUM|COUNT|MAX|MIN|GROUP_BY)_(.*)/;
+// Matches aggregate column prefixes in a case-insensitive way and multiple naming styles
+const AGG_REGEXP =
+  /^(AVG|SUM|COUNT|MAX|MIN|GROUP_BY|group_by|groupBy|avg|sum|count|max|min)_(.*)$/i;
 
 /**
  * @internal
  * Builds aggregate queries for MikroORM.
  */
 export class AggregateBuilder<Entity extends object> {
+  static buildSelectExpressions<Entity>(
+    aggregate: AggregateQuery<Entity>,
+    alias?: string,
+  ): [string, string][] {
+    const aggs: [AggregateFuncs, (keyof Entity)[] | undefined][] = [
+      [AggregateFuncs.COUNT, aggregate.count],
+      [AggregateFuncs.SUM, aggregate.sum],
+      [AggregateFuncs.AVG, aggregate.avg],
+      [AggregateFuncs.MAX, aggregate.max],
+      [AggregateFuncs.MIN, aggregate.min],
+    ];
+
+    const groupBySelects: [string, string][] = (aggregate.groupBy ?? []).map((f) => {
+      const col = alias ? `\`${alias}\`.\`${String(f)}\`` : `\`${String(f)}\``;
+      return [col, AggregateBuilder.getGroupByAlias(f)];
+    });
+
+    const funcSelects: [string, string][] = [];
+    aggs.forEach(([func, fields]) => {
+      const aliases = (fields ?? []).map((f) => {
+        const col = alias ? `\`${alias}\`.\`${String(f)}\`` : `\`${String(f)}\``;
+        return [`${func}(${col})`, AggregateBuilder.getAggregateAlias(func, f)];
+      });
+      funcSelects.push(...(aliases as [string, string][]));
+    });
+
+    const selects = [...groupBySelects, ...funcSelects];
+    if (!selects.length) {
+      throw new BadRequestException('No aggregate fields found.');
+    }
+    return selects;
+  }
   static async asyncConvertToAggregateResponse<Entity>(
     responsePromise: Promise<Record<string, unknown>[]>,
   ): Promise<AggregateResponse<Entity>[]> {
@@ -61,21 +94,51 @@ export class AggregateBuilder<Entity extends object> {
     rawAggregates: Record<string, unknown>[],
   ): AggregateResponse<Entity>[] {
     return rawAggregates.map((response) => {
-      return Object.keys(response).reduce((agg: AggregateResponse<Entity>, resultField: string) => {
+      const agg: AggregateResponse<Entity> = {} as AggregateResponse<Entity>;
+
+      // Handle Mongo-style grouped _id object (e.g. _id: { group_by_field: value })
+      if (response._id && typeof response._id === 'object') {
+        const idObj = response._id as Record<string, unknown>;
+        Object.keys(idObj).forEach((k) => {
+          const m = /^(?:GROUP_BY|group_by|groupBy)_(.*)$/i.exec(k);
+          if (m) {
+            const field = m[1] as keyof Entity;
+            agg.groupBy = { ...(agg.groupBy as Record<string, unknown>), [field]: idObj[k] } as any;
+          }
+        });
+      }
+
+      Object.keys(response).forEach((resultField) => {
+        if (resultField === '_id') return;
+
         const matchResult = AGG_REGEXP.exec(resultField);
         if (!matchResult) {
           throw new Error('Unknown aggregate column encountered.');
         }
-        const [matchedFunc, matchedFieldName] = matchResult.slice(1);
-        const aggFunc = camelCase(matchedFunc.toLowerCase()) as keyof AggregateResponse<Entity>;
-        const fieldName = matchedFieldName as keyof Entity;
-        const aggResult = agg[aggFunc] || {};
-        return {
-          ...agg,
+        const matchedFunc = matchResult[1];
+        const matchedFieldName = matchResult[2];
+        const funcKey = matchedFunc.toLowerCase();
+        // normalize to aggregate response keys: count, sum, avg, max, min
+        const aggFunc = (
+          funcKey === 'group_by' || funcKey === 'groupby' ? 'groupBy' : funcKey
+        ) as keyof AggregateResponse<Entity>;
+        if (aggFunc === 'groupBy') {
+          // If group_by leaked into top-level, set it on groupBy
+          agg.groupBy = {
+            ...(agg.groupBy as Record<string, unknown>),
+            [matchedFieldName]: response[resultField],
+          } as any;
+          return;
+        }
 
-          [aggFunc]: { ...aggResult, [fieldName]: response[resultField] },
-        };
-      }, {});
+        const fieldName = matchedFieldName as keyof Entity;
+        agg[aggFunc] = {
+          ...(agg[aggFunc] as Record<string, unknown>),
+          [fieldName]: response[resultField],
+        } as any;
+      });
+
+      return agg;
     });
   }
 
@@ -122,7 +185,7 @@ export class AggregateBuilder<Entity extends object> {
 
     // Use MikroORM's raw() and addSelect() to avoid finalizing the QueryBuilder
     selects.forEach(([selectExpr, selectAlias]) => {
-      qb.addSelect(raw(`${selectExpr} as "${selectAlias}"`));
+      qb.addSelect!(raw(`${selectExpr} as "${selectAlias}"`));
     });
 
     return qb;

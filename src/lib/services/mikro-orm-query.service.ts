@@ -1,5 +1,5 @@
-import type { FilterQuery, RequiredEntityData } from '@mikro-orm/core';
-import type { EntityRepository } from '@mikro-orm/knex';
+import type { EntityName, FilterQuery, RequiredEntityData } from '@mikro-orm/core';
+import type { EntityRepository } from '@mikro-orm/core';
 import type {
   AggregateQuery,
   AggregateResponse,
@@ -101,7 +101,7 @@ export class MikroOrmQueryService<Entity extends object>
 
   get EntityClass(): Class<Entity> {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName());
+    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
     return metadata.class as Class<Entity>;
   }
 
@@ -119,28 +119,178 @@ export class MikroOrmQueryService<Entity extends object>
    * @param query - The Query used to filter, page, and sort rows.
    */
   async query(query: Query<Entity>): Promise<Entity[]> {
-    const qb = this.filterQueryBuilder.select(query);
-    // Apply entity-level filters (like soft delete) - must be done before executing
-    await qb.applyFilters();
-    return qb.getResultList();
+    const { filterQuery, options } = this.filterQueryBuilder.buildFindOptions(query);
+    const em = this.repo.getEntityManager();
+    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
+    if (this.useSoftDelete) {
+      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
+      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
+    }
+    return em.find(this.EntityClass, where ?? {}, options as Record<string, unknown>);
   }
 
   async aggregate(
     filter: Filter<Entity>,
     aggregate: AggregateQuery<Entity>,
   ): Promise<AggregateResponse<Entity>[]> {
-    const qb = this.filterQueryBuilder.aggregate({ filter }, aggregate);
-    // Apply entity-level filters (like soft delete) - must be done before executing
-    await qb.applyFilters();
-    const rawResults = await qb.execute<Record<string, unknown>[]>();
-    return AggregateBuilder.convertToAggregateResponse(rawResults);
+    // Build find options for the filter and fetch matching rows, then compute aggregates in-memory
+    const { filterQuery } = this.filterQueryBuilder.buildFindOptions({ filter } as Query<Entity>);
+    const em = this.repo.getEntityManager();
+    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
+    if (this.useSoftDelete) {
+      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
+      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
+    }
+    const rows = (await em.find(this.EntityClass, where ?? {})) as unknown[];
+
+    // Compute aggregates similar to RelationQueryBuilder (database-agnostic)
+    const aggs = aggregate;
+    const groupBy = aggs.groupBy ?? [];
+    const records: Record<string, unknown>[] = [];
+    const makeAggKey = (func: string, field: string) => `${func}_${field}`;
+    const makeGroupKey = (field: string) => `GROUP_BY_${field}`;
+
+    const isNumeric = (v: unknown) => typeof v === 'number' || v instanceof Date;
+
+    if (groupBy.length === 0) {
+      const out: Record<string, unknown> = {};
+      const computeField = (fn: 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN', field: string) => {
+        const values = rows
+          .map((r) => (r as Record<string, unknown>)[field])
+          .filter((v) => v !== undefined && v !== null);
+        if (fn === 'COUNT') {
+          out[makeAggKey('COUNT', field)] = values.length;
+          return;
+        }
+        if (values.length === 0) {
+          out[makeAggKey(fn, field)] = null;
+          return;
+        }
+        if (fn === 'SUM' || fn === 'AVG') {
+          const nums = values
+            .map((v) => (v instanceof Date ? v.getTime() : Number(v)))
+            .filter((n) => !Number.isNaN(n));
+          const sum = nums.reduce((s: number, v: number) => s + v, 0);
+          out[makeAggKey(fn, field)] = fn === 'SUM' ? sum : nums.length ? sum / nums.length : null;
+          return;
+        }
+        if (fn === 'MAX') {
+          if (values.every(isNumeric)) {
+            const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
+            out[makeAggKey('MAX', field)] = Math.max(...nums);
+          } else {
+            out[makeAggKey('MAX', field)] = values.reduce((a, b) =>
+              String(a) > String(b) ? a : b,
+            );
+          }
+          return;
+        }
+        if (fn === 'MIN') {
+          if (values.every(isNumeric)) {
+            const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
+            out[makeAggKey('MIN', field)] = Math.min(...nums);
+          } else {
+            out[makeAggKey('MIN', field)] = values.reduce((a, b) =>
+              String(a) < String(b) ? a : b,
+            );
+          }
+          return;
+        }
+      };
+
+      (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
+      (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
+      (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
+      (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
+      (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
+
+      records.push(out);
+    } else {
+      const groups = new Map<string, unknown[]>();
+      rows.forEach((r) => {
+        const key = groupBy
+          .map((g) => JSON.stringify((r as Record<string, unknown>)[String(g)]))
+          .join('|');
+        const arr = groups.get(key) ?? [];
+        arr.push(r);
+        groups.set(key, arr);
+      });
+
+      groups.forEach((groupRows, key) => {
+        const parts = key.split('|').map((p) => JSON.parse(p));
+        const out: Record<string, unknown> = {};
+        groupBy.forEach((g, i) => {
+          const val = parts[i];
+          out[makeGroupKey(String(g))] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
+        });
+
+        const computeField = (fn: 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN', field: string) => {
+          const values = groupRows
+            .map((r) => (r as Record<string, unknown>)[field])
+            .filter((v) => v !== undefined && v !== null);
+          if (fn === 'COUNT') {
+            out[makeAggKey('COUNT', field)] = values.length;
+            return;
+          }
+          if (values.length === 0) {
+            out[makeAggKey(fn, field)] = null;
+            return;
+          }
+          if (fn === 'SUM' || fn === 'AVG') {
+            const nums = values
+              .map((v) => (v instanceof Date ? v.getTime() : Number(v)))
+              .filter((n) => !Number.isNaN(n));
+            const sum = nums.reduce((s: number, v: number) => s + v, 0);
+            out[makeAggKey(fn, field)] =
+              fn === 'SUM' ? sum : nums.length ? sum / nums.length : null;
+            return;
+          }
+          if (fn === 'MAX') {
+            if (values.every(isNumeric)) {
+              const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
+              out[makeAggKey('MAX', field)] = Math.max(...nums);
+            } else {
+              out[makeAggKey('MAX', field)] = values.reduce((a, b) =>
+                String(a) > String(b) ? a : b,
+              );
+            }
+            return;
+          }
+          if (fn === 'MIN') {
+            if (values.every(isNumeric)) {
+              const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
+              out[makeAggKey('MIN', field)] = Math.min(...nums);
+            } else {
+              out[makeAggKey('MIN', field)] = values.reduce((a, b) =>
+                String(a) < String(b) ? a : b,
+              );
+            }
+            return;
+          }
+        };
+
+        (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
+        (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
+        (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
+        (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
+        (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
+
+        records.push(out);
+      });
+    }
+
+    return records.map((r) => AggregateBuilder.convertToAggregateResponse([r])[0]);
   }
 
   async count(filter: Filter<Entity>): Promise<number> {
-    const qb = this.filterQueryBuilder.select({ filter });
-    // Apply entity-level filters (like soft delete) - must be done before executing
-    await qb.applyFilters();
-    return qb.getCount();
+    const { filterQuery } = this.filterQueryBuilder.buildFindOptions({ filter } as Query<Entity>);
+    const em = this.repo.getEntityManager();
+    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
+    if (this.useSoftDelete) {
+      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
+      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
+    }
+    return em.count(this.EntityClass, where ?? {});
   }
 
   /**
@@ -153,11 +303,21 @@ export class MikroOrmQueryService<Entity extends object>
    * @param id - The id of the record to find.
    */
   async findById(id: string | number, opts?: FindByIdOptions<Entity>): Promise<Entity | undefined> {
-    const qb = this.filterQueryBuilder.selectById(id, opts ?? {});
-    // Apply entity-level filters (like soft delete) - must be done before executing
-    await qb.applyFilters();
-    const result = await qb.getSingleResult();
-    return result ?? undefined;
+    const metadata = this.em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<any>);
+    const primaryKey = metadata.primaryKeys[0] as keyof Entity;
+    let where: FilterQuery<Entity> = { [primaryKey]: id } as FilterQuery<Entity>;
+    if (opts?.filter) {
+      const whereBuilder = new WhereBuilder<Entity>();
+      const additional = whereBuilder.build(opts.filter);
+      where = { $and: [where, additional] } as unknown as FilterQuery<Entity>;
+    }
+    if (this.useSoftDelete) {
+      where = { $and: [where, { deletedAt: null }] } as unknown as FilterQuery<Entity>;
+    }
+    const entity = await this.em.findOne(this.EntityClass, where as FilterQuery<Entity>);
+    return entity ?? undefined;
   }
 
   /**
@@ -235,8 +395,8 @@ export class MikroOrmQueryService<Entity extends object>
     ) as DeepPartial<Entity>;
     this.ensureIdIsNotPresent(dateWithClearUndefined);
     const entity = await this.getById(id, opts);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wrap(entity).assign(dateWithClearUndefined as any);
+
+    wrap(entity).assign(dateWithClearUndefined as unknown as Partial<Entity> as any);
     await this.repo.getEntityManager().flush();
     return entity;
   }
@@ -347,7 +507,7 @@ export class MikroOrmQueryService<Entity extends object>
     this.ensureSoftDeleteEnabled();
     // When restoring, we need to find soft-deleted entities, so bypass filters
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName());
+    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
     const primaryKey = metadata.primaryKeys[0] as keyof Entity;
 
     let whereClause: FilterQuery<Entity> = {
@@ -412,14 +572,19 @@ export class MikroOrmQueryService<Entity extends object>
 
   private async ensureIsEntityAndDoesNotExist(e: DeepPartial<Entity>): Promise<Entity> {
     if (!(e instanceof this.EntityClass)) {
-      const entity = this.em.create(this.repo.getEntityName(), e as RequiredEntityData<Entity>);
-      return this.ensureEntityDoesNotExist(entity);
+      const entity = this.em.create(
+        this.repo.getEntityName() as unknown as EntityName<any>,
+        e as RequiredEntityData<Entity>,
+      );
+      return this.ensureEntityDoesNotExist(entity as Entity);
     }
     return this.ensureEntityDoesNotExist(e);
   }
 
   private async ensureEntityDoesNotExist(e: Entity): Promise<Entity> {
-    const metadata = this.em.getMetadata().get(this.repo.getEntityName());
+    const metadata = this.em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<any>);
     const primaryKey = metadata.primaryKeys[0];
     const id = (e as Record<string, unknown>)[primaryKey];
 
@@ -437,7 +602,9 @@ export class MikroOrmQueryService<Entity extends object>
   }
 
   private ensureIdIsNotPresent(e: DeepPartial<Entity>): void {
-    const metadata = this.em.getMetadata().get(this.repo.getEntityName());
+    const metadata = this.em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<any>);
     const primaryKey = metadata.primaryKeys[0];
 
     if ((e as Record<string, unknown>)[primaryKey]) {

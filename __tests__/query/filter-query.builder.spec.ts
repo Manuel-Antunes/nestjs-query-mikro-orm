@@ -1,15 +1,15 @@
-import type { QueryBuilder } from '@mikro-orm/knex';
 import type { Class, Filter } from '@nestjs-query/core';
 import { SortDirection, SortNulls } from '@nestjs-query/core';
-
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { WhereBuilder } from '../../src/lib/query';
+import { FilterQueryBuilder } from '../../src/lib/query';
 import {
   closeTestConnection,
   createTestConnection,
   getTestConnection,
 } from '../__fixtures__/connection.fixture';
 import { TestEntity } from '../__fixtures__/test.entity';
-import { FilterQueryBuilder } from '../../src/lib/query';
+import { EntityName } from '@mikro-orm/core';
 
 describe('FilterQueryBuilder', (): void => {
   beforeEach(createTestConnection);
@@ -21,12 +21,6 @@ describe('FilterQueryBuilder', (): void => {
   ): FilterQueryBuilder<Entity> => {
     const repo = getTestConnection().em.getRepository(entity);
     return new FilterQueryBuilder(repo, whereBuilder);
-  };
-
-  const getSQL = <Entity extends object>(
-    qb: QueryBuilder<Entity>,
-  ): { sql: string; bindings: readonly unknown[] } => {
-    return qb.getKnexQuery().toSQL();
   };
 
   describe('#getReferencedRelationsRecursive', () => {
@@ -55,7 +49,10 @@ describe('FilterQueryBuilder', (): void => {
         ],
       };
       const qb = getEntityQueryBuilder(TestEntity);
-      const metadata = qb.repo.getEntityManager().getMetadata().get(qb.repo.getEntityName());
+      const metadata = qb.repo
+        .getEntityManager()
+        .getMetadata()
+        .get(qb.repo.getEntityName() as unknown as EntityName<any>);
       expect(qb.getReferencedRelationsRecursive(metadata, complexQuery)).toEqual({
         oneTestRelation: { relationOfTestRelation: {} },
       });
@@ -63,7 +60,10 @@ describe('FilterQueryBuilder', (): void => {
 
     it('with nested and / or', () => {
       const qb = getEntityQueryBuilder(TestEntity);
-      const metadata = qb.repo.getEntityManager().getMetadata().get(qb.repo.getEntityName());
+      const metadata = qb.repo
+        .getEntityManager()
+        .getMetadata()
+        .get(qb.repo.getEntityName() as unknown as EntityName<any>);
       expect(
         qb.getReferencedRelationsRecursive(metadata, {
           and: [
@@ -107,64 +107,52 @@ describe('FilterQueryBuilder', (): void => {
     describe('with filter', () => {
       it('should create a query without filter when not provided', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({});
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('select');
-        expect(sql).toContain('test_entity');
+        const result = qb.buildFindOptions({});
+        expect(result.filterQuery).toBeUndefined();
+        expect(result.options).toBeUndefined();
       });
 
       it('should apply filter when provided', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({ filter: { stringType: { eq: 'foo' } } });
-        const { sql, bindings } = getSQL(selectQb);
-        expect(sql).toContain('where');
-        expect(bindings).toContain('foo');
+        const result = qb.buildFindOptions({ filter: { stringType: { eq: 'foo' } } });
+        expect((result.filterQuery as any).stringType.$eq).toBe('foo');
       });
     });
 
     describe('with paging', () => {
       it('should apply empty paging args', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({});
-        const { sql } = getSQL(selectQb);
-        expect(sql).not.toContain('limit');
-        expect(sql).not.toContain('offset');
+        const result = qb.buildFindOptions({});
+        expect(result.options).toBeUndefined();
       });
 
       it('should apply paging args going forward', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({ paging: { limit: 10, offset: 11 } });
-        const { sql, bindings } = getSQL(selectQb);
-        expect(sql).toContain('limit');
-        expect(sql).toContain('offset');
-        expect(bindings).toContain(10);
-        expect(bindings).toContain(11);
+        const result = qb.buildFindOptions({ paging: { limit: 10, offset: 11 } });
+        expect(result.options?.limit).toBe(10);
+        expect(result.options?.offset).toBe(11);
       });
 
       it('should apply paging args going backward', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({ paging: { limit: 10, offset: 10 } });
-        const { sql, bindings } = getSQL(selectQb);
-        expect(sql).toContain('limit');
-        expect(sql).toContain('offset');
-        expect(bindings).toContain(10);
+        const result = qb.buildFindOptions({ paging: { limit: 10, offset: 10 } });
+        expect(result.options?.limit).toBe(10);
+        expect(result.options?.offset).toBe(10);
       });
     });
 
     describe('with sorting', () => {
       it('should apply ASC sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [{ field: 'numberType', direction: SortDirection.ASC }],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
+        expect((result.options?.orderBy as any).numberType).toBe('asc');
       });
 
       it('should apply ASC NULLS_FIRST sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [
             {
               field: 'numberType',
@@ -173,15 +161,12 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
-        expect(sql.toLowerCase()).toContain('nulls first');
+        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls first');
       });
 
       it('should apply ASC NULLS_LAST sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [
             {
               field: 'numberType',
@@ -190,25 +175,20 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('asc');
-        expect(sql.toLowerCase()).toContain('nulls last');
+        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls last');
       });
 
       it('should apply DESC sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [{ field: 'numberType', direction: SortDirection.DESC }],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
+        expect((result.options?.orderBy as any).numberType).toBe('desc');
       });
 
       it('should apply DESC NULLS_FIRST sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [
             {
               field: 'numberType',
@@ -217,15 +197,12 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
-        expect(sql.toLowerCase()).toContain('nulls first');
+        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls first');
       });
 
       it('should apply DESC NULLS_LAST sorting', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [
             {
               field: 'numberType',
@@ -234,15 +211,12 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
-        expect(sql.toLowerCase()).toContain('desc');
-        expect(sql.toLowerCase()).toContain('nulls last');
+        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls last');
       });
 
       it('should apply multiple sorts', () => {
         const qb = getEntityQueryBuilder(TestEntity);
-        const selectQb = qb.select({
+        const result = qb.buildFindOptions({
           sorting: [
             { field: 'numberType', direction: SortDirection.ASC },
             { field: 'boolType', direction: SortDirection.DESC },
@@ -258,8 +232,7 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        const { sql } = getSQL(selectQb);
-        expect(sql).toContain('order by');
+        expect(Object.keys(result.options?.orderBy ?? {}).length).toBeGreaterThan(1);
       });
     });
   });

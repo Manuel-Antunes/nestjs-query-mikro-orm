@@ -1,11 +1,10 @@
-import type { EntityMetadata, QBFilterQuery } from '@mikro-orm/core';
-import type { EntityRepository, QueryBuilder } from '@mikro-orm/knex';
-import type { AggregateQuery, Filter, Paging, Query, SortField } from '@nestjs-query/core';
+import type { EntityMetadata, EntityName, EntityRepository, FilterQuery } from '@mikro-orm/core';
+import type { Filter, Query, SortField } from '@nestjs-query/core';
 import { getFilterFields } from '@nestjs-query/core';
 import merge from 'lodash.merge';
 
-import { AggregateBuilder } from './aggregate.builder';
 import { WhereBuilder } from './where.builder';
+import type { QueryBuilder } from './types';
 
 /**
  * @internal
@@ -25,87 +24,64 @@ export class FilterQueryBuilder<Entity extends object> {
   constructor(
     readonly repo: EntityRepository<Entity>,
     readonly whereBuilder: WhereBuilder<Entity> = new WhereBuilder<Entity>(),
-    readonly aggregateBuilder: AggregateBuilder<Entity> = new AggregateBuilder<Entity>(),
   ) {}
 
   /**
-   * Create a MikroORM QueryBuilder with `WHERE`, `ORDER BY` and `LIMIT/OFFSET` clauses.
-   *
-   * @param query - the query to apply.
+   * NOTE: QueryBuilder-specific helpers removed; use `buildFindOptions` to
+   * produce a filter and options for `em.find`/`repo.find`.
    */
-  select(query: Query<Entity>): QueryBuilder<Entity> {
-    const alias = this.getEntityAlias();
-    const qb = this.createQueryBuilder(alias);
-    this.applyFilter(qb, query.filter, alias);
-    this.applySorting(qb, query.sorting, alias);
-    this.applyPaging(qb, query.paging);
-    return qb;
-  }
-
-  selectById(
-    id: string | number | (string | number)[],
-    query: Query<Entity>,
-  ): QueryBuilder<Entity> {
-    const alias = this.getEntityAlias();
-    const qb = this.createQueryBuilder(alias);
-    const metadata = this.repo.getEntityManager().getMetadata().get(this.repo.getEntityName());
-    const primaryKey = metadata.primaryKeys[0];
-
-    if (Array.isArray(id)) {
-      qb.where({ [primaryKey]: { $in: id } } as QBFilterQuery<Entity>);
-    } else {
-      qb.where({ [primaryKey]: id } as QBFilterQuery<Entity>);
-    }
-
-    this.applyFilter(qb, query.filter, alias);
-    this.applySorting(qb, query.sorting, alias);
-    this.applyPaging(qb, query.paging);
-    return qb;
-  }
-
-  aggregate(query: Query<Entity>, aggregate: AggregateQuery<Entity>): QueryBuilder<Entity> {
-    const alias = this.getEntityAlias();
-    const qb = this.createQueryBuilder(alias);
-    this.applyAggregate(qb, aggregate, alias);
-    this.applyFilter(qb, query.filter, alias);
-    this.applyAggregateSorting(qb, aggregate.groupBy, alias);
-    this.applyGroupBy(qb, aggregate.groupBy, alias);
-    return qb;
-  }
 
   /**
-   * Applies paging to a MikroORM query builder
-   * @param qb - the MikroORM QueryBuilder
-   * @param paging - the Paging options.
+   * Build a filter query and find options suitable for `em.find`/`repo.find` calls.
+   * This keeps usage DB-agnostic by returning plain filter objects and options
+   * instead of driver-specific QueryBuilder instances.
    */
-  applyPaging<Q extends QueryBuilder<Entity>>(qb: Q, paging?: Paging): Q {
-    if (!paging) {
-      return qb;
+  buildFindOptions(query: Query<Entity>): {
+    filterQuery?: FilterQuery<Entity>;
+    options?: { limit?: number; offset?: number; orderBy?: Record<string, unknown> };
+  } {
+    const result: {
+      filterQuery?: FilterQuery<Entity>;
+      options?: { limit?: number; offset?: number; orderBy?: Record<string, unknown> };
+    } = {};
+
+    if (query.filter) {
+      const mikroOrmFilter = this.whereBuilder.build(query.filter) as FilterQuery<Entity>;
+      result.filterQuery = mikroOrmFilter;
     }
 
-    if (paging.limit !== undefined) {
-      qb.limit(paging.limit);
-    }
-    if (paging.offset !== undefined) {
-      qb.offset(paging.offset);
+    const paging = query.paging;
+    const sorting = query.sorting;
+
+    if (
+      (paging && (paging.limit !== undefined || paging.offset !== undefined)) ||
+      (sorting && sorting.length)
+    ) {
+      const options: { limit?: number; offset?: number; orderBy?: Record<string, unknown> } = {};
+      if (paging) {
+        if (paging.limit !== undefined) options.limit = paging.limit;
+        if (paging.offset !== undefined) options.offset = paging.offset;
+      }
+      if (sorting && sorting.length > 0) {
+        const orderBy = sorting.reduce(
+          (acc, { field, direction, nulls }) => {
+            const order = direction === 'ASC' ? 'asc' : 'desc';
+            let orderValue: string | object = order;
+
+            if (nulls) {
+              orderValue = `${order} ${nulls.toLowerCase().replace('_', ' ')}`;
+            }
+
+            return { ...acc, [field]: orderValue };
+          },
+          {} as Record<string, unknown>,
+        );
+        options.orderBy = orderBy;
+      }
+      result.options = options;
     }
 
-    return qb;
-  }
-
-  /**
-   * Applies the aggregate selects from a Query to a MikroORM QueryBuilder.
-   *
-   * @param qb - the MikroORM QueryBuilder.
-   * @param aggregate - the aggregates to select.
-   * @param alias - optional alias to use to qualify an identifier
-   */
-  applyAggregate<Q extends QueryBuilder<Entity>>(
-    qb: Q,
-    aggregate: AggregateQuery<Entity>,
-    alias?: string,
-  ): Q {
-    return this.aggregateBuilder.build(qb, aggregate, alias);
+    return result;
   }
 
   /**
@@ -120,7 +96,7 @@ export class FilterQueryBuilder<Entity extends object> {
       return qb;
     }
     const mikroOrmFilter = this.whereBuilder.build(filter);
-    return qb.andWhere(mikroOrmFilter as QBFilterQuery<Entity>) as Q;
+    return qb.andWhere!(mikroOrmFilter as FilterQuery<Entity>) as Q;
   }
 
   /**
@@ -153,7 +129,7 @@ export class FilterQueryBuilder<Entity extends object> {
     );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return qb.orderBy(orderBy as any) as Q;
+    return qb.orderBy!(orderBy as any) as Q;
   }
 
   applyGroupBy<Q extends QueryBuilder<Entity>>(
@@ -166,7 +142,7 @@ export class FilterQueryBuilder<Entity extends object> {
     }
 
     groupBy.forEach((field) => {
-      qb.groupBy(field as string);
+      qb.groupBy!(field as string);
     });
 
     return qb;
@@ -190,14 +166,19 @@ export class FilterQueryBuilder<Entity extends object> {
     );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return qb.orderBy(orderBy as any) as Q;
+    return qb.orderBy!(orderBy as any) as Q;
   }
 
   /**
    * Create a MikroORM QueryBuilder.
    */
   private createQueryBuilder(alias?: string): QueryBuilder<Entity> {
-    return this.repo.createQueryBuilder(alias);
+    // `EntityRepository` typings may vary across MikroORM packages; use `any` at
+    // the callsite to access the runtime helper without a hard dependency on
+    // driver's repository type declarations.
+    return (
+      this.repo as unknown as { createQueryBuilder?: (alias?: string) => QueryBuilder<Entity> }
+    ).createQueryBuilder?.(alias) as QueryBuilder<Entity>;
   }
 
   /**
@@ -205,7 +186,7 @@ export class FilterQueryBuilder<Entity extends object> {
    */
   private getEntityAlias(): string {
     const em = this.repo.getEntityManager();
-    const meta = em.getMetadata().get(this.repo.getEntityName());
+    const meta = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
     return meta.className;
   }
 
@@ -248,7 +229,7 @@ export class FilterQueryBuilder<Entity extends object> {
       actualFilter = {};
     } else {
       // Called as (filter) - backward compatible
-      metadata = em.getMetadata().get(this.repo.getEntityName());
+      metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
       actualFilter = metadataOrFilter as Filter<unknown>;
     }
 
@@ -267,7 +248,9 @@ export class FilterQueryBuilder<Entity extends object> {
 
       // Get nested relations recursively
       const nestedFilter = currFilterValue as Filter<unknown>;
-      const targetMeta = em.getMetadata().get(referencedRelation.type);
+      const targetMeta = em
+        .getMetadata()
+        .get(referencedRelation.type as unknown as EntityName<any>);
       const nestedRelations = nestedFilter
         ? this.getReferencedRelationsRecursiveInternal(targetMeta, nestedFilter)
         : {};
@@ -297,7 +280,9 @@ export class FilterQueryBuilder<Entity extends object> {
 
       // Get nested relations recursively
       const nestedFilter = currFilterValue as Filter<unknown>;
-      const targetMeta = em.getMetadata().get(referencedRelation.type);
+      const targetMeta = em
+        .getMetadata()
+        .get(referencedRelation.type as unknown as EntityName<any>);
       const nestedRelations = nestedFilter
         ? this.getReferencedRelationsRecursiveInternal(targetMeta, nestedFilter)
         : {};
@@ -311,7 +296,7 @@ export class FilterQueryBuilder<Entity extends object> {
 
   private get relationNames(): string[] {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName());
+    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
     return metadata.relations.map((r) => r.name);
   }
 }

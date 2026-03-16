@@ -19,7 +19,7 @@ export type EntityComparisonField<Entity, F extends keyof Entity> =
  * Maps nestjs-query comparison operators to MikroORM operators.
  * This is a simplified version since MikroORM uses object-based filters.
  */
-export class SQLComparisonBuilder<Entity> {
+export class ComparisonBuilder<Entity> {
   /**
    * Maps a comparison operator to MikroORM filter format.
    *

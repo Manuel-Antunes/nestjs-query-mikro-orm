@@ -17,7 +17,6 @@ export default defineConfig({
   }),
   external: [
     '@mikro-orm/core',
-    '@mikro-orm/knex',
     '@mikro-orm/nestjs',
     '@nestjs/common',
     '@nestjs/core',

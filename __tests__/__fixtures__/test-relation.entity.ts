@@ -1,5 +1,6 @@
+import { Collection } from '@mikro-orm/core';
+
 import {
-  Collection,
   Entity,
   ManyToMany,
   ManyToOne,
@@ -7,7 +8,7 @@ import {
   OneToOne,
   PrimaryKey,
   Property,
-} from '@mikro-orm/core';
+} from '@mikro-orm/decorators/legacy';
 import { Exclude } from 'class-transformer';
 
 import { RelationOfTestRelationEntity } from './relation-of-test-relation.entity';

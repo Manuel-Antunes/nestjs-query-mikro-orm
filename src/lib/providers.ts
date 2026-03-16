@@ -1,5 +1,4 @@
-import type { AnyEntity, EntityName } from '@mikro-orm/core';
-import type { EntityRepository } from '@mikro-orm/knex';
+import type { AnyEntity, EntityName, EntityRepository } from '@mikro-orm/core';
 import type { FactoryProvider } from '@nestjs/common';
 import { getRepositoryToken } from '@mikro-orm/nestjs';
 import { getQueryServiceToken } from '@nestjs-query/core';

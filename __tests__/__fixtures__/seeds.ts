@@ -69,7 +69,7 @@ export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> =
     const entity = em.create(TestEntity, entityData as TestEntity);
     testEntities.push(entity);
   }
-  await em.persistAndFlush(testEntities);
+  await em.persist(testEntities).flush();
 
   // Create test relations and link to entities
   const testRelations: TestRelation[] = [];
@@ -83,7 +83,7 @@ export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> =
     }
     testRelations.push(relation);
   }
-  await em.persistAndFlush(testRelations);
+  await em.persist(testRelations).flush();
 
   // Create relations of test relation and link to test relations
   const relationsOfRelation: RelationOfTestRelationEntity[] = [];
@@ -96,7 +96,7 @@ export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> =
     }
     relationsOfRelation.push(ror);
   }
-  await em.persistAndFlush(relationsOfRelation);
+  await em.persist(relationsOfRelation).flush();
 
   // Set up relationships
   for (const te of testEntities) {
@@ -133,5 +133,5 @@ export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> =
     const entity = em.create(TestSoftDeleteEntity, entityData as TestSoftDeleteEntity);
     softDeleteEntities.push(entity);
   }
-  await em.persistAndFlush(softDeleteEntities);
+  await em.persist(softDeleteEntities).flush();
 };
