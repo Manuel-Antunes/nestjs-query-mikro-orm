@@ -45,9 +45,6 @@ importers:
       '@mikro-orm/sqlite':
         specifier: ^7.0.2
         version: 7.0.2(@mikro-orm/core@7.0.2(dataloader@2.2.3))
-      '@nestjs-query/core':
-        specifier: ^0.30.0
-        version: 0.30.0(@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2)
@@ -60,6 +57,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.0
         version: 11.1.13(@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2))(@nestjs/core@11.1.13)(@nestjs/platform-express@11.1.13)
+      '@ptc-org/nestjs-query-core':
+        specifier: ^9.4.0
+        version: 9.4.0(@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)
       '@swc/core':
         specifier: ^1.10.6
         version: 1.15.11
@@ -664,12 +664,6 @@ packages:
   '@mongodb-js/saslprep@1.4.6':
     resolution: {integrity: sha512-y+x3H1xBZd38n10NZF/rEBlvDOOMQ6LKUTHqr8R9VkJ+mmQOYtJFxIlkkK8fZrtOiL6VixbOBWMbZGBdal3Z1g==}
 
-  '@nestjs-query/core@0.30.0':
-    resolution: {integrity: sha512-q2ykkGmC220LYkud6AGy8udyXspPSTVKHxAMwXMO/AsKEZkyT/kTEJdRoBPJqIs20Tdx8azDbEk4UCpb0l4Buw==}
-    peerDependencies:
-      '@nestjs/common': ^8.0.4
-      class-transformer: ^0.2.3 || 0.3.1 || 0.4
-
   '@nestjs/common@11.1.13':
     resolution: {integrity: sha512-ieqWtipT+VlyDWLz5Rvz0f3E5rXcVAnaAi+D53DEHLjc1kmFxCgZ62qVfTX2vwkywwqNkTNXvBgGR72hYqV//Q==}
     peerDependencies:
@@ -732,6 +726,12 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@ptc-org/nestjs-query-core@9.4.0':
+    resolution: {integrity: sha512-wCSEYLByPCjyorhpn+HDfkKVlavi6/Y03rgTgqNM8yqe7Ef6V0W0hlXhVeImTJqYl3jd5Z2zl6XUtciOQ5Aqdg==}
+    peerDependencies:
+      '@nestjs/common': ^9.0.0 || ^10.0.0 || ^11.0.0
+      class-transformer: ^0.5
 
   '@rollup/rollup-android-arm-eabi@4.57.1':
     resolution: {integrity: sha512-A6ehUVSiSaaliTxai040ZpZ2zTevHYbvu/lDoeAteHI8QnaosIzm4qwtezfRg1jOYaUmnzLX1AOD6Z+UJjtifg==}
@@ -2431,6 +2431,9 @@ packages:
   reflect-metadata@0.1.14:
     resolution: {integrity: sha512-ZhYeb6nRaXCfhnndflDK8qI6ZQ/YcWZCISRAWICW9XYqMUwjZM9Z0DveWX/ABN01oxSHwVxKQmxeYZSsm0jh5A==}
 
+  reflect-metadata@0.2.2:
+    resolution: {integrity: sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==}
+
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
@@ -3369,14 +3372,6 @@ snapshots:
     dependencies:
       sparse-bitfield: 3.0.3
 
-  '@nestjs-query/core@0.30.0(@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)':
-    dependencies:
-      '@nestjs/common': 11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2)
-      class-transformer: 0.5.1
-      lodash.merge: 4.6.2
-      reflect-metadata: 0.1.14
-      tslib: 2.8.1
-
   '@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2)':
     dependencies:
       file-type: 21.3.0
@@ -3433,6 +3428,14 @@ snapshots:
     optional: true
 
   '@pkgr/core@0.2.9': {}
+
+  '@ptc-org/nestjs-query-core@9.4.0(@nestjs/common@11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2))(class-transformer@0.5.1)':
+    dependencies:
+      '@nestjs/common': 11.1.13(class-transformer@0.5.1)(reflect-metadata@0.1.14)(rxjs@7.8.2)
+      class-transformer: 0.5.1
+      lodash.merge: 4.6.2
+      reflect-metadata: 0.2.2
+      tslib: 2.8.1
 
   '@rollup/rollup-android-arm-eabi@4.57.1':
     optional: true
@@ -5119,6 +5122,8 @@ snapshots:
   readdirp@4.1.2: {}
 
   reflect-metadata@0.1.14: {}
+
+  reflect-metadata@0.2.2: {}
 
   require-directory@2.1.1: {}
 

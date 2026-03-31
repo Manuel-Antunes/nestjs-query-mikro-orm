@@ -4,14 +4,15 @@ import type {
   AggregateQuery,
   AggregateResponse,
   Class,
+  DeepPartial,
   Filter,
   FindRelationOptions,
   GetByIdOptions,
   ModifyRelationOptions,
   Query,
-} from '@nestjs-query/core';
+} from '@ptc-org/nestjs-query-core';
 import { wrap } from '@mikro-orm/core';
-import { AssemblerFactory } from '@nestjs-query/core';
+import { AssemblerFactory } from '@ptc-org/nestjs-query-core';
 
 import type { FilterQueryBuilder } from '../query/index';
 import { AggregateBuilder, RelationQueryBuilder } from '../query/index';
@@ -77,8 +78,8 @@ export abstract class RelationQueryService<Entity extends object> {
       this.getRelationEntity(relationName),
     );
     const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
-    return assembler.convertAsyncToDTOs(
-      relationQueryBuilder.selectAndExecute(dto, assembler.convertQuery(query)),
+    return assembler.convertToDTOs(
+      await relationQueryBuilder.selectAndExecute(dto, assembler.convertQuery(query)),
     );
   }
 
@@ -428,7 +429,7 @@ export abstract class RelationQueryService<Entity extends object> {
     await Promise.all(
       entities.map(async (entity) => {
         const relations = await relationQueryBuilder.selectAndExecute(entity, convertedQuery);
-        const relationDtos = assembler.convertToDTOs(relations);
+        const relationDtos = await assembler.convertToDTOs(relations);
         // Only add to map if there are relations (undefined for entities with no relations)
         if (relationDtos.length > 0) {
           results.set(entity, relationDtos);
@@ -554,9 +555,9 @@ export abstract class RelationQueryService<Entity extends object> {
     };
   }
 
-  private getRelationEntity(relationName: string): Class<unknown> {
+  private getRelationEntity(relationName: string): Class<DeepPartial<unknown>> {
     const relationMeta = this.getRelationMeta(relationName);
-    return relationMeta.entity() as Class<unknown>;
+    return relationMeta.entity() as Class<DeepPartial<unknown>>;
   }
 
   private async getRelations<Relation extends object>(

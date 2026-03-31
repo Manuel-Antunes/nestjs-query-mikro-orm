@@ -1,6 +1,6 @@
 {
   "name": "nestjs-query-mikro-orm",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "NestJS Query adapter for MikroORM",
   "author": "Manuel Antunes",
   "license": "MIT",
@@ -55,7 +55,6 @@
     "@mikro-orm/mongodb": "^7.0.2",
     "@mikro-orm/nestjs": "^7.0.1",
     "@mikro-orm/sqlite": "^7.0.2",
-    "@nestjs-query/core": "^0.30.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
@@ -68,6 +67,7 @@
     "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.21.0",
     "@typescript-eslint/parser": "^8.21.0",
+    "@ptc-org/nestjs-query-core": "^9.4.0",
     "@vitest/coverage-v8": "^3.0.0",
     "class-transformer": "^0.5.1",
     "esbuild": "^0.23.1",
@@ -86,9 +86,10 @@
     "vitest": "^3.0.0"
   },
   "peerDependencies": {
-    "@mikro-orm/core": "^6.0.0",
-    "@mikro-orm/nestjs": "^6.0.0",
-    "@nestjs-query/core": "^0.30.0",
+    "@ptc-org/nestjs-query-core": "^9.4.0",
+    "@mikro-orm/core": "^7.0.2",
+    "@mikro-orm/decorators": "^7.0.2",
+    "@mikro-orm/nestjs": "^7.0.2",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "@nestjs/core": "^10.0.0 || ^11.0.0",
     "class-transformer": "^0.5.0",

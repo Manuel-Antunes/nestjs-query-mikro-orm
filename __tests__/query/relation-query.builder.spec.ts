@@ -1,5 +1,5 @@
-import type { Class } from '@nestjs-query/core';
-import { SortDirection, SortNulls } from '@nestjs-query/core';
+import type { Class } from '@ptc-org/nestjs-query-core';
+import { SortDirection, SortNulls } from '@ptc-org/nestjs-query-core';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { RelationQueryBuilder } from '../../src/lib/query';

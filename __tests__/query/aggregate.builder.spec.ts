@@ -1,4 +1,4 @@
-import type { AggregateQuery } from '@nestjs-query/core';
+import type { AggregateQuery } from '@ptc-org/nestjs-query-core';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AggregateBuilder } from '../../src/lib/query';
@@ -35,6 +35,18 @@ describe('AggregateBuilder', (): void => {
       count: ['testEntityPk'],
     });
     expect(selects.map((s) => s[1]).join(',')).toContain('GROUP_BY');
+  });
+
+  it('should only generate selects for requested aggregate functions', (): void => {
+    const selects = getSelects({
+      sum: ['numberType'],
+    });
+    const selectExprs = selects.map((s) => s[0]).join(',');
+    expect(selectExprs).toContain('SUM');
+    expect(selectExprs).not.toContain('COUNT');
+    expect(selectExprs).not.toContain('AVG');
+    expect(selectExprs).not.toContain('MAX');
+    expect(selectExprs).not.toContain('MIN');
   });
 
   describe('.convertToAggregateResponse', () => {

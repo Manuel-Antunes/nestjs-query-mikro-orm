@@ -4,7 +4,7 @@ import type {
   Filter,
   FilterComparisons,
   FilterFieldComparison,
-} from '@nestjs-query/core';
+} from '@ptc-org/nestjs-query-core';
 
 /**
  * @internal

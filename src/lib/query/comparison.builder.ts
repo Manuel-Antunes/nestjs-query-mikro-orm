@@ -1,7 +1,7 @@
 import type {
   CommonFieldComparisonBetweenType,
   FilterComparisonOperators,
-} from '@nestjs-query/core';
+} from '@ptc-org/nestjs-query-core';
 
 /**
  * @internal

@@ -1,10 +1,10 @@
 import type { EntityRepository } from '@mikro-orm/core';
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
-import type { Filter } from '@nestjs-query/core';
+import type { Filter } from '@ptc-org/nestjs-query-core';
 import type { TestingModule } from '@nestjs/testing';
 import { MikroORM } from '@mikro-orm/core';
 import { getRepositoryToken, MikroOrmModule } from '@mikro-orm/nestjs';
-import { SortDirection } from '@nestjs-query/core';
+import { SortDirection } from '@ptc-org/nestjs-query-core';
 import { Test } from '@nestjs/testing';
 import { plainToClass } from 'class-transformer';
 

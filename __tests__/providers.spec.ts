@@ -1,5 +1,5 @@
 import { getRepositoryToken } from '@mikro-orm/nestjs';
-import { getQueryServiceToken } from '@nestjs-query/core';
+import { getQueryServiceToken } from '@ptc-org/nestjs-query-core';
 
 import { createMikroOrmQueryServiceProviders } from '../src/lib/providers';
 

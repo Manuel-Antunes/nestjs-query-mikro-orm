@@ -1,6 +1,6 @@
 import type { EntityMetadata, EntityName, EntityRepository, FilterQuery } from '@mikro-orm/core';
-import type { Filter, Query, SortField } from '@nestjs-query/core';
-import { getFilterFields } from '@nestjs-query/core';
+import type { Filter, Query, SortField } from '@ptc-org/nestjs-query-core';
+import { getFilterFields } from '@ptc-org/nestjs-query-core';
 import merge from 'lodash.merge';
 
 import { WhereBuilder } from './where.builder';

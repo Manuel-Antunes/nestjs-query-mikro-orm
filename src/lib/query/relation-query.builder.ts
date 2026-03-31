@@ -1,5 +1,5 @@
 import type { EntityProperty, FilterQuery, EntityRepository, EntityName } from '@mikro-orm/core';
-import type { AggregateQuery, Query } from '@nestjs-query/core';
+import type { AggregateQuery, Query } from '@ptc-org/nestjs-query-core';
 
 import { FilterQueryBuilder } from './filter-query.builder';
 

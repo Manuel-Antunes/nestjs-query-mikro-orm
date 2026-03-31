@@ -30,7 +30,7 @@ The package automatically detects the import method and serves the appropriate f
 pnpm add nestjs-query-mikro-orm
 
 # Install peer dependencies if you haven't already
-pnpm add @mikro-orm/core @nestjs/common @nestjs/core @nestjs-query/core reflect-metadata rxjs
+pnpm add @mikro-orm/core @nestjs/common @nestjs/core @ptc-org/nestjs-query-core reflect-metadata rxjs
 ```
 
 ## Quick Start

@@ -1,7 +1,7 @@
 import type { AnyEntity, EntityName, EntityRepository } from '@mikro-orm/core';
 import type { FactoryProvider } from '@nestjs/common';
 import { getRepositoryToken } from '@mikro-orm/nestjs';
-import { getQueryServiceToken } from '@nestjs-query/core';
+import { getQueryServiceToken } from '@ptc-org/nestjs-query-core';
 
 import { MikroOrmQueryService } from './services';
 

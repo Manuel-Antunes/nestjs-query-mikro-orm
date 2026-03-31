@@ -1,4 +1,4 @@
-import type { CommonFieldComparisonBetweenType } from '@nestjs-query/core';
+import type { CommonFieldComparisonBetweenType } from '@ptc-org/nestjs-query-core';
 
 import { describe, expect, it } from 'vitest';
 import { ComparisonBuilder } from '../../src/lib/query';

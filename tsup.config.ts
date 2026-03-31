@@ -20,7 +20,7 @@ export default defineConfig({
     '@mikro-orm/nestjs',
     '@nestjs/common',
     '@nestjs/core',
-    '@nestjs-query/core',
+    '@ptc-org/nestjs-query-core',
     'camel-case',
     'class-transformer',
     'lodash.filter',

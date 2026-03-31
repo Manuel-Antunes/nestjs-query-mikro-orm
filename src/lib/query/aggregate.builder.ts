@@ -1,8 +1,8 @@
 import type { EntityMetadata } from '@mikro-orm/core';
-import type { QueryBuilder } from './types';
-import type { AggregateQuery, AggregateResponse } from '@nestjs-query/core';
 import { raw } from '@mikro-orm/core';
 import { BadRequestException } from '@nestjs/common';
+import type { AggregateQuery, AggregateResponse } from '@ptc-org/nestjs-query-core';
+import type { QueryBuilder } from './types';
 
 enum AggregateFuncs {
   AVG = 'AVG',
@@ -26,21 +26,23 @@ export class AggregateBuilder<Entity extends object> {
     alias?: string,
   ): [string, string][] {
     const aggs: [AggregateFuncs, (keyof Entity)[] | undefined][] = [
-      [AggregateFuncs.COUNT, aggregate.count],
-      [AggregateFuncs.SUM, aggregate.sum],
-      [AggregateFuncs.AVG, aggregate.avg],
-      [AggregateFuncs.MAX, aggregate.max],
-      [AggregateFuncs.MIN, aggregate.min],
+      [AggregateFuncs.COUNT, aggregate.count as any],
+      [AggregateFuncs.SUM, aggregate.sum as any],
+      [AggregateFuncs.AVG, aggregate.avg as any],
+      [AggregateFuncs.MAX, aggregate.max as any],
+      [AggregateFuncs.MIN, aggregate.min as any],
     ];
 
     const groupBySelects: [string, string][] = (aggregate.groupBy ?? []).map((f) => {
       const col = alias ? `\`${alias}\`.\`${String(f)}\`` : `\`${String(f)}\``;
-      return [col, AggregateBuilder.getGroupByAlias(f)];
+      return [col, AggregateBuilder.getGroupByAlias(f as never)];
     });
 
     const funcSelects: [string, string][] = [];
+    // Only create selects for aggregate functions that actually have fields
     aggs.forEach(([func, fields]) => {
-      const aliases = (fields ?? []).map((f) => {
+      if (!fields || fields.length === 0) return;
+      const aliases = fields.map((f) => {
         const col = alias ? `\`${alias}\`.\`${String(f)}\`` : `\`${String(f)}\``;
         return [`${func}(${col})`, AggregateBuilder.getAggregateAlias(func, f)];
       });
@@ -65,19 +67,20 @@ export class AggregateBuilder<Entity extends object> {
   }
 
   private static getAggregateGroupBySelects<Entity>(query: AggregateQuery<Entity>): string[] {
-    return (query.groupBy ?? []).map((f) => this.getGroupByAlias(f));
+    return (query.groupBy ?? []).map((f) => this.getGroupByAlias(f as never));
   }
 
   private static getAggregateFuncSelects<Entity>(query: AggregateQuery<Entity>): string[] {
     const aggs: [AggregateFuncs, (keyof Entity)[] | undefined][] = [
-      [AggregateFuncs.COUNT, query.count],
-      [AggregateFuncs.SUM, query.sum],
-      [AggregateFuncs.AVG, query.avg],
-      [AggregateFuncs.MAX, query.max],
-      [AggregateFuncs.MIN, query.min],
+      [AggregateFuncs.COUNT, query.count as any],
+      [AggregateFuncs.SUM, query.sum as any],
+      [AggregateFuncs.AVG, query.avg as any],
+      [AggregateFuncs.MAX, query.max as any],
+      [AggregateFuncs.MIN, query.min as any],
     ];
     return aggs.reduce((cols, [func, fields]) => {
-      const aliases = (fields ?? []).map((f) => this.getAggregateAlias(func, f));
+      if (!fields || fields.length === 0) return cols;
+      const aliases = fields.map((f) => this.getAggregateAlias(func, f));
       return [...cols, ...aliases];
     }, [] as string[]);
   }
@@ -171,14 +174,22 @@ export class AggregateBuilder<Entity extends object> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const metadata: EntityMetadata<Entity> | undefined = (qb as any).mainAlias?.metadata;
 
-    const selects = [
-      ...this.createGroupBySelect(aggregate.groupBy, alias, metadata),
-      ...this.createAggSelect(AggregateFuncs.COUNT, aggregate.count, alias, metadata),
-      ...this.createAggSelect(AggregateFuncs.SUM, aggregate.sum, alias, metadata),
-      ...this.createAggSelect(AggregateFuncs.AVG, aggregate.avg, alias, metadata),
-      ...this.createAggSelect(AggregateFuncs.MAX, aggregate.max, alias, metadata),
-      ...this.createAggSelect(AggregateFuncs.MIN, aggregate.min, alias, metadata),
+    const selects: [string, string][] = [];
+    // Group by selects
+    selects.push(...this.createGroupBySelect(aggregate.groupBy as any, alias, metadata));
+
+    // Only add aggregate selects for functions that were requested
+    const aggs: [AggregateFuncs, (keyof Entity)[] | undefined][] = [
+      [AggregateFuncs.COUNT, aggregate.count as any],
+      [AggregateFuncs.SUM, aggregate.sum as any],
+      [AggregateFuncs.AVG, aggregate.avg as any],
+      [AggregateFuncs.MAX, aggregate.max as any],
+      [AggregateFuncs.MIN, aggregate.min as any],
     ];
+    aggs.forEach(([func, fields]) => {
+      if (!fields || fields.length === 0) return;
+      selects.push(...this.createAggSelect(func, fields, alias, metadata));
+    });
     if (!selects.length) {
       throw new BadRequestException('No aggregate fields found.');
     }

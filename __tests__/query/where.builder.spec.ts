@@ -1,4 +1,4 @@
-import type { Filter } from '@nestjs-query/core';
+import type { Filter } from '@ptc-org/nestjs-query-core';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WhereBuilder } from '../../src/lib/query';
