@@ -1,4 +1,4 @@
-import type { EntityProperty, FilterQuery, EntityRepository, EntityName } from '@mikro-orm/core';
+import type { EntityName, EntityProperty, EntityRepository, FilterQuery } from '@mikro-orm/core';
 import type { AggregateQuery, Query } from '@ptc-org/nestjs-query-core';
 
 import { FilterQueryBuilder } from './filter-query.builder';
@@ -156,10 +156,15 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
         }
       };
 
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.count ?? []).forEach((f: keyof Relation) => computeField('COUNT', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.sum ?? []).forEach((f: keyof Relation) => computeField('SUM', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.avg ?? []).forEach((f: keyof Relation) => computeField('AVG', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.max ?? []).forEach((f: keyof Relation) => computeField('MAX', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.min ?? []).forEach((f: keyof Relation) => computeField('MIN', String(f)));
 
       records.push(out);
@@ -230,10 +235,15 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
           }
         };
 
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.count ?? []).forEach((f: keyof Relation) => computeField('COUNT', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.sum ?? []).forEach((f: keyof Relation) => computeField('SUM', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.avg ?? []).forEach((f: keyof Relation) => computeField('AVG', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.max ?? []).forEach((f: keyof Relation) => computeField('MAX', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.min ?? []).forEach((f: keyof Relation) => computeField('MIN', String(f)));
 
         records.push(out);

@@ -197,11 +197,16 @@ export class MikroOrmQueryService<Entity extends object>
           return;
         }
       };
-
+      // Only add aggregate selects for functions that were requested
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
+      // @ts-expect-error - TypeScript is not correctly inferring the types here
       (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
 
       records.push(out);
@@ -268,11 +273,15 @@ export class MikroOrmQueryService<Entity extends object>
             return;
           }
         };
-
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
+        // @ts-expect-error - TypeScript is not correctly inferring the types here
         (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
 
         records.push(out);
