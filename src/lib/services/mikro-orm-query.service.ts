@@ -93,7 +93,7 @@ export class MikroOrmQueryService<Entity extends object>
       AssemblerDeserializer((d: DeepPartial<Entity>) => {
         const entity = this.repo
           .getEntityManager()
-          .create(this.EntityClass, instanceToPlain(d) as RequiredEntityData<Entity>);
+          .merge(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
         return entity;
       })(this.EntityClass);
     }

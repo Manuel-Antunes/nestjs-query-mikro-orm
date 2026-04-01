@@ -557,7 +557,8 @@ export abstract class RelationQueryService<Entity extends object> {
 
   private getRelationEntity(relationName: string): Class<DeepPartial<unknown>> {
     const relationMeta = this.getRelationMeta(relationName);
-    return relationMeta.entity() as Class<DeepPartial<unknown>>;
+    const entity = relationMeta.entity() as Class<DeepPartial<unknown>>;
+    return entity && 'class' in entity ? (entity.class as Class<DeepPartial<unknown>>) : entity;
   }
 
   private async getRelations<Relation extends object>(
