@@ -297,7 +297,14 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
         // Look for any property that ends with the relation name (case-insensitive) + Id
         const matchingKey = entityKeys.find((key) => {
           const keyLower = key.toLowerCase();
-          return keyLower.endsWith('id') && relationNameLower.includes(keyLower.replace(/id$/, ''));
+          if (keyLower === 'id' || !keyLower.endsWith('id')) {
+            return false;
+          }
+          const base = keyLower.replace(/id$/, '');
+          if (!base) {
+            return false;
+          }
+          return relationNameLower.includes(base);
         });
         if (matchingKey) {
           fkValue = entityAsRecord[matchingKey];

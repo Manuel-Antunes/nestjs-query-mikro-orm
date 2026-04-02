@@ -21,6 +21,7 @@ interface RelationMetadata {
   kind: 'm:1' | '1:m' | '1:1' | 'm:n';
   type: string;
   entity: () => EntityName<unknown>;
+  mappedBy?: string;
 }
 
 /**
@@ -73,6 +74,11 @@ export abstract class RelationQueryService<Entity extends object> {
     if (Array.isArray(dto)) {
       return this.batchQueryRelations(RelationClass, relationName, dto, query);
     }
+    if (this.isRelationClassIdentity(RelationClass, relationName)) {
+      const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
+      return (await relationQueryBuilder.selectAndExecute(dto, query)) as Relation[];
+    }
+
     const assembler = AssemblerFactory.getAssembler(
       RelationClass,
       this.getRelationEntity(relationName),
@@ -195,6 +201,15 @@ export abstract class RelationQueryService<Entity extends object> {
     if (Array.isArray(dto)) {
       return this.batchFindRelations(RelationClass, relationName, dto, opts);
     }
+    if (this.isRelationClassIdentity(RelationClass, relationName)) {
+      const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
+      const relations = await relationQueryBuilder.selectAndExecute(dto, {
+        filter: opts?.filter,
+        paging: { limit: 1 },
+      });
+      return relations[0] as Relation | undefined;
+    }
+
     const assembler = AssemblerFactory.getAssembler(
       RelationClass,
       this.getRelationEntity(relationName),
@@ -222,6 +237,7 @@ export abstract class RelationQueryService<Entity extends object> {
     opts?: ModifyRelationOptions<Entity, Relation>,
   ): Promise<Entity> {
     const entity = await this.getById(id, opts);
+    const meta = this.getRelationMeta(relationName);
     const relations = await this.getRelations<Relation>(
       relationName,
       relationIds,
@@ -229,6 +245,15 @@ export abstract class RelationQueryService<Entity extends object> {
     );
     if (!this.foundAllRelations(relationIds, relations)) {
       throw new Error(`Unable to find all ${relationName} to add to ${this.EntityClass.name}`);
+    }
+
+    if (meta.kind === '1:m' && meta.mappedBy) {
+      for (const relation of relations) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wrap(relation as any).assign({ [meta.mappedBy]: entity } as any);
+      }
+      await this.repo.getEntityManager().flush();
+      return entity;
     }
 
     // Get the collection and add relations
@@ -259,6 +284,7 @@ export abstract class RelationQueryService<Entity extends object> {
     opts?: ModifyRelationOptions<Entity, Relation>,
   ): Promise<Entity> {
     const entity = await this.getById(id, opts);
+    const meta = this.getRelationMeta(relationName);
     const relations = await this.getRelations<Relation>(
       relationName,
       relationIds,
@@ -268,6 +294,31 @@ export abstract class RelationQueryService<Entity extends object> {
       if (!this.foundAllRelations(relationIds, relations)) {
         throw new Error(`Unable to find all ${relationName} to set on ${this.EntityClass.name}`);
       }
+    }
+
+    if (meta.kind === '1:m' && meta.mappedBy) {
+      const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
+      const currentRelations = await relationQueryBuilder.selectAndExecute(
+        entity,
+        {} as Query<Relation>,
+      );
+      const nextSet = new Set(relations.map((r) => wrap(r as any).getPrimaryKey()));
+
+      for (const currentRelation of currentRelations) {
+        const currentPk = wrap(currentRelation as any).getPrimaryKey();
+        if (!nextSet.has(currentPk)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          wrap(currentRelation as any).assign({ [meta.mappedBy]: null } as any);
+        }
+      }
+
+      for (const relation of relations) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wrap(relation as any).assign({ [meta.mappedBy]: entity } as any);
+      }
+
+      await this.repo.getEntityManager().flush();
+      return entity;
     }
 
     // Get the collection and set relations
@@ -326,6 +377,7 @@ export abstract class RelationQueryService<Entity extends object> {
     opts?: ModifyRelationOptions<Entity, Relation>,
   ): Promise<Entity> {
     const entity = await this.getById(id, opts);
+    const meta = this.getRelationMeta(relationName);
     const relations = await this.getRelations<Relation>(
       relationName,
       relationIds,
@@ -333,6 +385,15 @@ export abstract class RelationQueryService<Entity extends object> {
     );
     if (!this.foundAllRelations(relationIds, relations)) {
       throw new Error(`Unable to find all ${relationName} to remove from ${this.EntityClass.name}`);
+    }
+
+    if (meta.kind === '1:m' && meta.mappedBy) {
+      for (const relation of relations) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wrap(relation as any).assign({ [meta.mappedBy]: null } as any);
+      }
+      await this.repo.getEntityManager().flush();
+      return entity;
     }
 
     // Get the collection and remove relations
@@ -371,19 +432,39 @@ export abstract class RelationQueryService<Entity extends object> {
     }
     const meta = this.getRelationMeta(relationName);
     if (meta.kind === '1:1' || meta.kind === 'm:1') {
-      // For single relations, set both the relation and the FK field to null
-      // The FK field often follows the pattern relationNameId (e.g., testEntityId for testEntity)
+      // For single relations, prefer nulling the explicit FK field when available.
+      // This matches managed behavior where the relation object may remain attached in memory,
+      // while the persisted FK value is cleared.
       const fkFieldName = `${relationName}Id`;
-      const assignData: Record<string, null> = { [relationName]: null };
+      const assignData: Record<string, null> = {};
 
       // Also clear the FK field if it exists on the entity
-      if (fkFieldName in (entity as Record<string, unknown>)) {
+      const ownDescriptor = Object.getOwnPropertyDescriptor(entity, fkFieldName);
+      const protoDescriptor = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(entity),
+        fkFieldName,
+      );
+      const descriptor = ownDescriptor ?? protoDescriptor;
+      const canAssignFk =
+        fkFieldName in (entity as Record<string, unknown>) &&
+        (!descriptor || Boolean(descriptor.set) || descriptor.writable === true);
+
+      if (canAssignFk) {
         assignData[fkFieldName] = null;
+      } else {
+        assignData[relationName] = null;
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wrap(entity).assign(assignData as any);
     } else {
+      if (meta.kind === '1:m' && meta.mappedBy) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        wrap(relation as any).assign({ [meta.mappedBy]: null } as any);
+        await this.repo.getEntityManager().flush();
+        return entity;
+      }
+
       // For collections, remove the relation
       const collection = (entity as Record<string, unknown>)[relationName] as Collection<Relation>;
       if (collection && typeof collection.remove === 'function') {
@@ -416,12 +497,12 @@ export abstract class RelationQueryService<Entity extends object> {
     entities: Entity[],
     query: Query<Relation>,
   ): Promise<Map<Entity, Relation[]>> {
-    const assembler = AssemblerFactory.getAssembler(
-      RelationClass,
-      this.getRelationEntity(relationName),
-    );
+    const bypassAssembler = this.isRelationClassIdentity(RelationClass, relationName);
+    const assembler = bypassAssembler
+      ? undefined
+      : AssemblerFactory.getAssembler(RelationClass, this.getRelationEntity(relationName));
     const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
-    const convertedQuery = assembler.convertQuery(query);
+    const convertedQuery = assembler ? assembler.convertQuery(query) : query;
 
     const results = new Map<Entity, Relation[]>();
 
@@ -429,7 +510,9 @@ export abstract class RelationQueryService<Entity extends object> {
     await Promise.all(
       entities.map(async (entity) => {
         const relations = await relationQueryBuilder.selectAndExecute(entity, convertedQuery);
-        const relationDtos = await assembler.convertToDTOs(relations);
+        const relationDtos = bypassAssembler
+          ? (relations as Relation[])
+          : await assembler!.convertToDTOs(relations);
         // Only add to map if there are relations (undefined for entities with no relations)
         if (relationDtos.length > 0) {
           results.set(entity, relationDtos);
@@ -541,6 +624,14 @@ export abstract class RelationQueryService<Entity extends object> {
     return results;
   }
 
+  private isRelationClassIdentity<Relation extends object>(
+    RelationClass: Class<Relation>,
+    relationName: string,
+  ): boolean {
+    const relationEntity = this.getRelationEntity(relationName) as Class<Relation>;
+    return RelationClass === relationEntity || RelationClass.name === relationEntity.name;
+  }
+
   private getRelationMeta(relationName: string): RelationMetadata {
     const em = this.repo.getEntityManager();
     const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
@@ -552,6 +643,7 @@ export abstract class RelationQueryService<Entity extends object> {
       kind: relationMeta.kind as 'm:1' | '1:m' | '1:1' | 'm:n',
       type: relationMeta.type,
       entity: relationMeta.entity,
+      mappedBy: relationMeta.mappedBy,
     };
   }
 
