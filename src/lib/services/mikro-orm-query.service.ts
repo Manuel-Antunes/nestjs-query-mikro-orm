@@ -69,6 +69,7 @@ export class MikroOrmQueryService<Entity extends object>
           excludeExtraneousValues: true,
           exposeDefaultValues: true,
         });
+
         const jsonWithRemovedEmptyObjects = Object.fromEntries(
           Object.entries(json as object).filter(
             ([, value]) =>
@@ -91,10 +92,18 @@ export class MikroOrmQueryService<Entity extends object>
         return data;
       })(this.EntityClass);
       AssemblerDeserializer((d: DeepPartial<Entity>) => {
-        const entity = this.repo
-          .getEntityManager()
-          .merge(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
-        return entity;
+        const wrapped = wrap(d, true);
+        if (wrapped.getPrimaryKey()) {
+          const entity = this.repo
+            .getEntityManager()
+            .merge(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
+          return entity;
+        } else {
+          const entity = this.repo
+            .getEntityManager()
+            .create(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
+          return entity;
+        }
       })(this.EntityClass);
     }
   }
@@ -399,8 +408,10 @@ export class MikroOrmQueryService<Entity extends object>
     update: DeepPartial<Entity>,
     opts?: UpdateOneOptions<Entity>,
   ): Promise<Entity> {
+    const data = 'toPOJO' in wrap(update) ? wrap(update).toPOJO() : update;
+
     const dateWithClearUndefined = Object.fromEntries(
-      Object.entries(update).filter(([, value]) => value !== undefined),
+      Object.entries(data).filter(([, value]) => value !== undefined),
     ) as DeepPartial<Entity>;
     this.ensureIdIsNotPresent(dateWithClearUndefined);
     const entity = await this.getById(id, opts);
@@ -427,6 +438,11 @@ export class MikroOrmQueryService<Entity extends object>
     update: DeepPartial<Entity>,
     filter: Filter<Entity>,
   ): Promise<UpdateManyResponse> {
+    const data = 'toPOJO' in wrap(update) ? wrap(update).toPOJO() : update;
+
+    const dateWithClearUndefined = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined),
+    ) as DeepPartial<Entity>;
     this.ensureIdIsNotPresent(update);
 
     // Get entities matching the filter
@@ -435,7 +451,7 @@ export class MikroOrmQueryService<Entity extends object>
     // Update each entity
     for (const entity of entities) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      wrap(entity).assign(update as any);
+      wrap(entity).assign(dateWithClearUndefined as any);
     }
 
     await this.repo.getEntityManager().flush();

@@ -1,5 +1,11 @@
-import type { Collection, EntityName, EntityProperty, FilterQuery } from '@mikro-orm/core';
-import type { EntityRepository } from '@mikro-orm/core';
+import type {
+  Collection,
+  EntityName,
+  EntityProperty,
+  EntityRepository,
+  FilterQuery,
+} from '@mikro-orm/core';
+import { wrap } from '@mikro-orm/core';
 import type {
   AggregateQuery,
   AggregateResponse,
@@ -11,7 +17,6 @@ import type {
   ModifyRelationOptions,
   Query,
 } from '@ptc-org/nestjs-query-core';
-import { wrap } from '@mikro-orm/core';
 import { AssemblerFactory } from '@ptc-org/nestjs-query-core';
 
 import type { FilterQueryBuilder } from '../query/index';
@@ -302,10 +307,10 @@ export abstract class RelationQueryService<Entity extends object> {
         entity,
         {} as Query<Relation>,
       );
-      const nextSet = new Set(relations.map((r) => wrap(r as any).getPrimaryKey()));
+      const nextSet = new Set(relations.map((r) => (wrap(r as any) as any).getPrimaryKey()));
 
       for (const currentRelation of currentRelations) {
-        const currentPk = wrap(currentRelation as any).getPrimaryKey();
+        const currentPk = (wrap(currentRelation as any) as any).getPrimaryKey();
         if (!nextSet.has(currentPk)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           wrap(currentRelation as any).assign({ [meta.mappedBy]: null } as any);
