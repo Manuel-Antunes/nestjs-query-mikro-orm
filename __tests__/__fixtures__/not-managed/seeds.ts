@@ -4,6 +4,7 @@ import { getTestConnection } from './connection.fixture';
 import { RelationOfTestRelationEntity } from './relation-of-test-relation.entity';
 import { TestRelation } from './test-relation.entity';
 import { TestSoftDeleteEntity } from './test-soft-delete.entity';
+import { AddressEmbedded } from './address.embedded';
 import { TestEntity } from './test.entity';
 
 export const TEST_ENTITIES: Partial<TestEntity>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
@@ -16,6 +17,21 @@ export const TEST_ENTITIES: Partial<TestEntity>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 
     stringType: `foo${i}`,
   };
 });
+
+export const TEST_ENTITY_ADDRESSES: Record<string, AddressEmbedded> = {
+  'test-entity-1': new AddressEmbedded({
+    street: '123 Main St',
+    city: 'Springfield',
+    state: 'IL',
+    zipCode: '62701',
+  }),
+  'test-entity-2': new AddressEmbedded({
+    street: '55 Elm St',
+    city: 'Shelbyville',
+    state: 'IL',
+    zipCode: '62565',
+  }),
+};
 
 export const TEST_SOFT_DELETE_ENTITIES: Partial<TestSoftDeleteEntity>[] = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -64,6 +80,10 @@ export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> =
   const testEntities: TestEntity[] = [];
   for (const entityData of TEST_ENTITIES) {
     const entity = em.create(TestEntity, entityData as TestEntity);
+    const address = TEST_ENTITY_ADDRESSES[entityData.id as string];
+    if (address) {
+      entity.address = address;
+    }
     testEntities.push(entity);
   }
   await em.persist(testEntities).flush();

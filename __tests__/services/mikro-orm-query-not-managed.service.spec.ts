@@ -18,6 +18,7 @@ import { RelationOfTestRelationSchema } from '../__fixtures__/not-managed/relati
 import {
   seed,
   TEST_ENTITIES,
+  TEST_ENTITY_ADDRESSES,
   TEST_RELATIONS,
   TEST_SOFT_DELETE_ENTITIES,
 } from '../__fixtures__/not-managed/seeds';
@@ -116,6 +117,63 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
   });
 
   describe('#query', () => {
+    describe('embedded', () => {
+      it('should hydrate embedded address fields', async () => {
+        const queryService = moduleRef.get(TestEntityService);
+        const entity = await queryService.findById('test-entity-1');
+        const address = TEST_ENTITY_ADDRESSES['test-entity-1'];
+
+        expect(entity?.address?.street).toBe(address.street);
+        expect(entity?.address?.city).toBe(address.city);
+        expect(entity?.address?.state).toBe(address.state);
+        expect(entity?.address?.zipCode).toBe(address.zipCode);
+      });
+
+      it('should persist updates to a single embedded prop after persist+flush', async () => {
+        const queryService = moduleRef.get(TestEntityService);
+        const em = queryService.repo.getEntityManager();
+
+        const entity = await queryService.findById('test-entity-1');
+        expect(entity?.address).toBeDefined();
+
+        const original = {
+          street: entity!.address!.street,
+          city: entity!.address!.city,
+          state: entity!.address!.state,
+          zipCode: entity!.address!.zipCode,
+        };
+
+        const updatedStreet = `${original.street} (updated)`;
+        entity!.address!.street = updatedStreet;
+
+        await em.persist(entity!).flush();
+        em.clear();
+
+        const reloaded = await queryService.findById('test-entity-1');
+        expect(reloaded?.address?.street).toBe(updatedStreet);
+        expect(reloaded?.address?.city).toBe(original.city);
+        expect(reloaded?.address?.state).toBe(original.state);
+        expect(reloaded?.address?.zipCode).toBe(original.zipCode);
+      });
+
+      it('should filter by embedded address fields', async () => {
+        const queryService = moduleRef.get(TestEntityService);
+        const address = TEST_ENTITY_ADDRESSES['test-entity-1'];
+        const result = await queryService.query({
+          filter: {
+            address: {
+              city: {
+                eq: address.city,
+              },
+            },
+          },
+        });
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject(TEST_ENTITIES[0]);
+      });
+    });
+
     it('call select and return the result', async () => {
       const queryService = moduleRef.get(TestEntityService);
       const queryResult = await queryService.query({

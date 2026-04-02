@@ -148,11 +148,39 @@ export class CustomHydrator extends Hydrator {
     this.ensureEnumerableGetters(entityRef);
 
     const rawValue = data[prop.name as keyof EntityData<T>];
-    if (rawValue === undefined) {
+    const embeddedProps = (prop as { embeddedProps?: Record<string, EntityProperty<T>> })
+      .embeddedProps;
+    let val = rawValue as any;
+
+    if (rawValue === undefined && embeddedProps) {
+      const embeddedData: Record<string, unknown> = {};
+      let hasValue = false;
+      for (const childProp of Object.values(embeddedProps)) {
+        const childValue = (data as Record<string, unknown>)[childProp.name as string];
+        if (childValue !== undefined && childValue !== null) {
+          hasValue = true;
+        }
+        const embeddedKey = childProp.embedded?.[1] ?? childProp.name;
+        embeddedData[embeddedKey] = childValue;
+      }
+
+      if (!hasValue) {
+        return;
+      }
+      const embeddableCtor =
+        (prop as { embeddable?: new (...args: any[]) => unknown; type?: any }).embeddable ??
+        prop.type;
+      if (typeof embeddableCtor === 'function') {
+        val = new embeddableCtor(embeddedData);
+      } else {
+        val = factory.createEmbeddable(embeddableCtor, embeddedData as EntityData<object>, {
+          newEntity,
+          convertCustomTypes,
+        });
+      }
+    } else if (rawValue === undefined) {
       return;
     }
-
-    let val = rawValue as any;
     if (val !== null && val !== undefined) {
       if (prop.kind === 'm:1' || prop.kind === '1:1') {
         const targetType = prop.targetMeta?.className || prop.type;

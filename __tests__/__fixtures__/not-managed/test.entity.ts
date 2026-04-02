@@ -4,12 +4,14 @@ import { Exclude } from 'class-transformer';
 import { BaseEntity, BaseSchema } from './base.entity';
 import { TestEntityRelationEntity, TestEntityRelationSchema } from './test-entity-relation.entity';
 import { TestRelation, TestRelationSchema } from './test-relation.entity';
+import { AddressEmbedded, AddressEmbeddedSchema } from './address.embedded';
 
 interface TestEntityProps {
   stringType: string;
   boolType: boolean;
   numberType: number;
   dateType: Date;
+  address?: AddressEmbedded;
   testRelations?: TestRelation[];
   manyTestRelations?: TestRelation[];
   manyToManyUniDirectional?: TestRelation[];
@@ -41,6 +43,14 @@ export class TestEntity extends BaseEntity<TestEntityProps> {
   }
   set dateType(val: Date) {
     this.props.dateType = val;
+  }
+
+  get address(): AddressEmbedded | undefined {
+    return this.props.address;
+  }
+
+  set address(value: AddressEmbedded | undefined) {
+    this.props.address = value;
   }
 
   @Exclude()
@@ -95,6 +105,7 @@ export const TestSchema = defineEntity({
       oneTestRelation: () => properties.oneToOne(TestRelationSchema).nullable(),
       testEntityRelation: () =>
         properties.oneToMany(TestEntityRelationSchema).mappedBy('testEntity'),
+      address: () => properties.embedded(AddressEmbeddedSchema).name('address').nullable(),
     };
   },
 });
