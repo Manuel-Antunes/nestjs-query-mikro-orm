@@ -69,7 +69,6 @@ export class MikroOrmQueryService<Entity extends object>
           excludeExtraneousValues: true,
           exposeDefaultValues: true,
         });
-
         const jsonWithRemovedEmptyObjects = Object.fromEntries(
           Object.entries(json as object).filter(
             ([, value]) =>
@@ -92,18 +91,14 @@ export class MikroOrmQueryService<Entity extends object>
         return data;
       })(this.EntityClass);
       AssemblerDeserializer((d: DeepPartial<Entity>) => {
-        const wrapped = wrap(d, true);
-        if (wrapped.getPrimaryKey()) {
-          const entity = this.repo
-            .getEntityManager()
-            .merge(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
-          return entity;
-        } else {
-          const entity = this.repo
-            .getEntityManager()
-            .create(this.EntityClass, d as RequiredEntityData<Entity>) as Entity;
-          return entity;
-        }
+        const entity = this.repo
+          .getEntityManager()
+          .create(this.EntityClass, d as RequiredEntityData<Entity>, {
+            managed: true,
+            convertCustomTypes: true,
+            partial: true,
+          }) as Entity;
+        return entity;
       })(this.EntityClass);
     }
   }
