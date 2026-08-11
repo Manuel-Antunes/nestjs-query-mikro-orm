@@ -29,8 +29,14 @@ export const CONNECTION_OPTIONS = defineSqliteConfig({
 let orm: MikroORM;
 let mongod: MongoMemoryServer | undefined;
 
-export async function createTestConnection(): Promise<MikroORM> {
+/** Lets a spec observe the statements the driver emits, to assert on the query count. */
+export interface TestConnectionOpts {
+  logger?: (message: string) => void;
+}
+
+export async function createTestConnection(opts: TestConnectionOpts = {}): Promise<MikroORM> {
   const driver = process.env.TEST_DRIVER ?? 'sqlite';
+  const logging = opts.logger ? { debug: ['query' as const], logger: opts.logger } : {};
 
   if (driver === 'mongo') {
     mongod = await MongoMemoryServer.create();
@@ -41,12 +47,13 @@ export async function createTestConnection(): Promise<MikroORM> {
         entities: ENTITIES,
         allowGlobalContext: true,
         debug: false,
+        ...logging,
       }),
     );
     return orm;
   }
 
-  orm = await MikroORM.init(CONNECTION_OPTIONS);
+  orm = await MikroORM.init({ ...CONNECTION_OPTIONS, ...logging });
   await orm.schema.create();
   return orm;
 }

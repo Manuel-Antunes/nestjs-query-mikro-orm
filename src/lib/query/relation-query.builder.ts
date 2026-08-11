@@ -1,5 +1,6 @@
 import type {
   EntityKey,
+  EntityMetadata,
   EntityName,
   EntityProperty,
   EntityRepository,
@@ -9,12 +10,10 @@ import type {
 import { Collection, PopulateHint, Reference, wrap } from '@mikro-orm/core';
 import type { AggregateQuery, Query } from '@ptc-org/nestjs-query-core';
 
-import { AggregateBuilder } from './aggregate.builder';
+import type { AggregateRecord, AggregateStrategy } from '../aggregate/aggregate.strategy';
+import { groupByAlias } from '../aggregate/aggregate.strategy';
+import { InMemoryAggregateStrategy } from '../aggregate/in-memory.strategy';
 import { FilterQueryBuilder } from './filter-query.builder';
-
-export type EntityIndexRelation<Relation> = Relation & {
-  __nestjsQuery__entityIndex__: number;
-};
 
 /**
  * The `where` shape `em.find`/`em.count` accept.
@@ -60,6 +59,8 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
   constructor(
     readonly repo: EntityRepository<Entity>,
     readonly relation: string,
+    /** How single-entity relation aggregates are computed - see {@link aggregate}. */
+    readonly aggregateStrategy: AggregateStrategy = new InMemoryAggregateStrategy(),
   ) {
     const relationMeta = this.getRelationMeta();
     const em = this.repo.getEntityManager();
@@ -141,7 +142,11 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     entities: Entity[],
     query: Query<Relation>,
     aggregateQuery: AggregateQuery<Relation>,
-  ): Promise<Map<Entity, Record<string, unknown>[]>> {
+  ): Promise<Map<Entity, AggregateRecord[]>> {
+    const pushedDown = await this.batchAggregateThroughStrategy(entities, query, aggregateQuery);
+    if (pushedDown) {
+      return pushedDown;
+    }
     const loaded = await this.batchLoad(entities, query, false);
     return new Map(
       entities.map((entity) => [
@@ -149,6 +154,100 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
         this.computeAggregates(loaded.get(entity) ?? [], aggregateQuery),
       ]),
     );
+  }
+
+  /**
+   * Aggregates the relations of every owner in a single grouped query.
+   *
+   * Only possible when the relation rows carry the owning key themselves (`by-owner`) and that key
+   * is a single column: the owner column joins the `GROUP BY`, and the groups are handed back to
+   * whichever entity each one belongs to. Anything else returns `undefined` so the caller can fall
+   * back to loading the rows.
+   */
+  private async batchAggregateThroughStrategy(
+    entities: Entity[],
+    query: Query<Relation>,
+    aggregateQuery: AggregateQuery<Relation>,
+  ): Promise<Map<Entity, AggregateRecord[]> | undefined> {
+    if (entities.length === 0) {
+      return new Map<Entity, AggregateRecord[]>();
+    }
+
+    const relationMeta = this.getRelationMeta();
+    const plan = this.buildBatchPlan(entities, relationMeta);
+    if (plan.mode !== 'by-owner') {
+      return undefined;
+    }
+
+    const em = this.repo.getEntityManager();
+    const primaryKeys = em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>).primaryKeys;
+    if (primaryKeys.length !== 1) {
+      return undefined;
+    }
+
+    const ownerKeys = entities.map((entity) => {
+      const values = this.getPrimaryKeyValues(entity, primaryKeys);
+      return values === undefined ? undefined : this.normalizePrimaryKeyValue(values[0]);
+    });
+    if (ownerKeys.some((key) => key === undefined || key === null)) {
+      return undefined;
+    }
+
+    const { filterQuery } = this.filterQueryBuilder.buildFindOptions(query);
+    const where = this.andWhere(
+      { [plan.ownerProperty]: { $in: Array.from(new Set(ownerKeys)) } },
+      filterQuery,
+    ) as FilterQuery<Relation>;
+
+    const records = await this.aggregateStrategy.execute<Relation>({
+      em,
+      meta: this.relationMetadata,
+      where,
+      aggregate: aggregateQuery,
+      additionalGroupBy: [plan.ownerProperty],
+    });
+
+    const grouped = new Map<string, AggregateRecord[]>();
+    records.forEach((record) => {
+      const owner = this.takeOwnerGroup(record, plan.ownerProperty);
+      if (owner === undefined) {
+        return;
+      }
+      grouped.set(owner, [...(grouped.get(owner) ?? []), record]);
+    });
+
+    // An owner with no relations produces no group, but still has to answer - over an empty set,
+    // which is what loading its (zero) rows and reducing them would have produced.
+    const empty = () => this.computeAggregates([], aggregateQuery);
+    return new Map(
+      entities.map((entity, index) => [entity, grouped.get(String(ownerKeys[index])) ?? empty()]),
+    );
+  }
+
+  /**
+   * Reads the owning key out of a grouped record and removes it.
+   *
+   * The owner column was only added to the `GROUP BY` to split the batch, so it must not surface
+   * as a grouped field in the response. MongoDB nests its grouped columns under `_id`.
+   */
+  private takeOwnerGroup(record: AggregateRecord, ownerProperty: string): string | undefined {
+    const alias = groupByAlias(ownerProperty);
+    const nested = record._id as AggregateRecord | null | undefined;
+    const raw = alias in record ? record[alias] : nested?.[alias];
+
+    delete record[alias];
+    if (nested && alias in nested) {
+      delete nested[alias];
+      // an `_id` that only carried the owner key would otherwise read back as an empty grouping
+      if (Object.keys(nested).length === 0) {
+        delete record._id;
+      }
+    }
+
+    const owner = this.normalizePrimaryKeyValue(raw);
+    return owner === undefined || owner === null ? undefined : String(owner);
   }
 
   async count(entity: Entity, query: Query<Relation>): Promise<number> {
@@ -174,10 +273,6 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     aggregateQuery: AggregateQuery<Relation>,
   ): Promise<Record<string, unknown>[]> {
     const relationMeta = this.getRelationMeta();
-    const em = this.repo.getEntityManager();
-
-    // Database-agnostic aggregate: fetch matching relations and compute aggregates in-memory
-    const RelationEntity = relationMeta.type as string;
     const baseWhere = this.buildWhereCondition(entity, relationMeta) as FilterQuery<Relation>;
     const { filterQuery } = this.filterQueryBuilder.buildFindOptions(
       query as unknown as Query<Relation>,
@@ -186,13 +281,20 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
       ? ({ $and: [baseWhere, filterQuery] } as FilterQuery<Relation>)
       : baseWhere;
 
-    // fetch all matching relations (no paging)
-    const rows = (await em.find<Relation>(
-      RelationEntity as unknown as EntityName<Relation>,
-      finalWhere as unknown as FindWhere<Relation>,
-    )) as unknown[];
+    return this.aggregateStrategy.execute<Relation>({
+      em: this.repo.getEntityManager(),
+      meta: this.relationMetadata,
+      where: finalWhere,
+      aggregate: aggregateQuery,
+    });
+  }
 
-    return this.computeAggregates(rows, aggregateQuery);
+  /** Metadata for the entity on the far side of the relation. */
+  get relationMetadata(): EntityMetadata<Relation> {
+    return this.repo
+      .getEntityManager()
+      .getMetadata()
+      .get(this.getRelationMeta().type as unknown as EntityName<Relation>);
   }
 
   /**
@@ -602,14 +704,16 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
    * for every driver.
    */
   /**
-   * Reduces the loaded relations into aggregate records, keyed the way
-   * {@link AggregateBuilder.convertToAggregateResponse} expects to read them back.
+   * Reduces relations that are already loaded into aggregate records.
+   *
+   * The batched loader has the rows in hand, so this deliberately stays in memory rather than
+   * issuing a second, database-side aggregate per owner - see {@link batchAggregate}.
    */
   private computeAggregates(
     rows: unknown[],
     aggregateQuery: AggregateQuery<Relation>,
   ): Record<string, unknown>[] {
-    return AggregateBuilder.computeAggregates(rows, aggregateQuery);
+    return new InMemoryAggregateStrategy().reduce<Relation>(rows, { aggregate: aggregateQuery });
   }
 
   /**
@@ -782,28 +886,5 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     }
 
     return relationProp as EntityProperty<Entity>;
-  }
-
-  get entityIndexColName(): string {
-    return '__nestjsQuery__entityIndex__';
-  }
-
-  getRelationPrimaryKeysPropertyNameAndColumnsName(): {
-    columnName: string;
-    propertyName: string;
-  }[] {
-    const em = this.repo.getEntityManager();
-    const relationMeta = this.getRelationMeta();
-    const relationEntityMeta = em
-      .getMetadata()
-      .get(relationMeta.type as unknown as EntityName<Relation>);
-
-    return relationEntityMeta.primaryKeys.map((pk) => {
-      const prop = relationEntityMeta.properties[pk];
-      return {
-        propertyName: pk,
-        columnName: prop.fieldNames?.[0] || pk,
-      };
-    });
   }
 }

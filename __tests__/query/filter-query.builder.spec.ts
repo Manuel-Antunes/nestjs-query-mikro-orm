@@ -23,7 +23,166 @@ describe('FilterQueryBuilder', (): void => {
     return new FilterQueryBuilder(repo, whereBuilder);
   };
 
+  /**
+   * The `apply*` helpers take any object shaped like a MikroORM QueryBuilder, so a recording stub
+   * is enough - and it lets the specs assert on exactly what was handed to the builder.
+   */
+  const queryBuilderStub = () => {
+    const calls = { andWhere: [] as unknown[], orderBy: [] as unknown[], groupBy: [] as string[] };
+    const qb = {
+      andWhere(filter: unknown) {
+        calls.andWhere.push(filter);
+        return this;
+      },
+      orderBy(order: unknown) {
+        calls.orderBy.push(order);
+        return this;
+      },
+      groupBy(field: string) {
+        calls.groupBy.push(field);
+        return this;
+      },
+    };
+    return { qb, calls };
+  };
+
+  describe('#applyFilter', () => {
+    it('should hand the converted filter to the query builder', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      expect(builder.applyFilter(qb, { stringType: { eq: 'foo' } })).toBe(qb);
+      expect(calls.andWhere).toEqual([{ stringType: { $eq: 'foo' } }]);
+    });
+
+    it('should leave the query builder untouched without a filter', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      expect(builder.applyFilter(qb)).toBe(qb);
+      expect(calls.andWhere).toEqual([]);
+    });
+  });
+
+  describe('#applySorting', () => {
+    it('should build an order by from the sort fields', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      builder.applySorting(qb, [
+        { field: 'stringType', direction: SortDirection.ASC },
+        { field: 'numberType', direction: SortDirection.DESC },
+      ]);
+      expect(calls.orderBy).toEqual([{ stringType: 'asc', numberType: 'desc' }]);
+    });
+
+    it('should carry the nulls placement into the order', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      builder.applySorting(qb, [
+        { field: 'stringType', direction: SortDirection.ASC, nulls: SortNulls.NULLS_FIRST },
+        { field: 'numberType', direction: SortDirection.DESC, nulls: SortNulls.NULLS_LAST },
+      ]);
+      expect(calls.orderBy).toEqual([
+        { stringType: 'asc nulls first', numberType: 'desc nulls last' },
+      ]);
+    });
+
+    it('should leave the query builder untouched for no sorting', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      expect(builder.applySorting(qb)).toBe(qb);
+      expect(builder.applySorting(qb, [])).toBe(qb);
+      expect(calls.orderBy).toEqual([]);
+    });
+  });
+
+  describe('#applyGroupBy', () => {
+    it('should group by each field in turn', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      builder.applyGroupBy(qb, ['stringType', 'boolType']);
+      expect(calls.groupBy).toEqual(['stringType', 'boolType']);
+    });
+
+    it('should leave the query builder untouched for no grouping', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      expect(builder.applyGroupBy(qb)).toBe(qb);
+      expect(builder.applyGroupBy(qb, [])).toBe(qb);
+      expect(calls.groupBy).toEqual([]);
+    });
+  });
+
+  describe('#applyAggregateSorting', () => {
+    it('should order ascending by every grouped field', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      builder.applyAggregateSorting(qb, ['stringType', 'boolType']);
+      expect(calls.orderBy).toEqual([{ stringType: 'asc', boolType: 'asc' }]);
+    });
+
+    it('should leave the query builder untouched for no grouping', () => {
+      const { qb, calls } = queryBuilderStub();
+      const builder = getEntityQueryBuilder(TestEntity);
+
+      expect(builder.applyAggregateSorting(qb)).toBe(qb);
+      expect(builder.applyAggregateSorting(qb, [])).toBe(qb);
+      expect(calls.orderBy).toEqual([]);
+    });
+  });
+
+  describe('#filterHasRelations', () => {
+    it('should be true when the filter reaches into a relation', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      expect(builder.filterHasRelations({ oneTestRelation: { relationName: { eq: 'a' } } })).toBe(
+        true,
+      );
+    });
+
+    it('should be false for a filter on the entity only', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      expect(builder.filterHasRelations({ stringType: { eq: 'a' } })).toBe(false);
+    });
+
+    it('should be false without a filter', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      expect(builder.filterHasRelations()).toBe(false);
+    });
+  });
+
   describe('#getReferencedRelationsRecursive', () => {
+    it('should find a directly referenced relation', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      const filter: Filter<TestEntity> = { oneTestRelation: { relationName: { eq: 'a' } } };
+      expect(builder.getReferencedRelationsRecursive(filter)).toEqual({ oneTestRelation: {} });
+    });
+
+    it('should ignore fields that are not relations', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      const filter: Filter<TestEntity> = { stringType: { eq: 'a' } };
+      expect(builder.getReferencedRelationsRecursive(filter)).toEqual({});
+    });
+
+    it('should return nothing for an empty filter', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      expect(builder.getReferencedRelationsRecursive({})).toEqual({});
+      expect(builder.getReferencedRelationsRecursive()).toEqual({});
+    });
+
+    it('should walk into the branches of an or', () => {
+      const builder = getEntityQueryBuilder(TestEntity);
+      const filter: Filter<TestEntity> = {
+        or: [{ oneTestRelation: { relationName: { eq: 'a' } } }, { stringType: { eq: 'b' } }],
+      };
+      expect(builder.getReferencedRelationsRecursive(filter)).toEqual({ oneTestRelation: {} });
+    });
+
     it('with deeply nested and / or', () => {
       const complexQuery: Filter<TestEntity> = {
         and: [

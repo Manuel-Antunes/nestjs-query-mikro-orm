@@ -28,12 +28,23 @@ import { getAssemblerSerializer } from '@ptc-org/nestjs-query-core/src/assembler
 import { MethodNotAllowedException, NotFoundException } from '@nestjs/common';
 import { instanceToPlain } from 'class-transformer';
 
+import type { AggregateStrategy } from '../aggregate';
+import { InMemoryAggregateStrategy, normalizeAggregateRecords } from '../aggregate';
 import { AggregateBuilder, FilterQueryBuilder, WhereBuilder } from '../query';
 import { RelationQueryService } from './relation-query.service';
 
 export interface MikroOrmQueryServiceOpts<Entity extends object> {
   useSoftDelete?: boolean;
   filterQueryBuilder?: FilterQueryBuilder<Entity>;
+  /**
+   * How aggregates are computed.
+   *
+   * Defaults to {@link InMemoryAggregateStrategy}, which works against every driver by reducing
+   * the matching rows in JavaScript. Swap in `SqlAggregateStrategy` from
+   * `nestjs-query-mikro-orm/sql` or `MongoAggregateStrategy` from `nestjs-query-mikro-orm/mongo`
+   * to push the work into the database, or bring your own for another backend.
+   */
+  aggregateStrategy?: AggregateStrategy;
 }
 
 /**
@@ -60,6 +71,8 @@ export class MikroOrmQueryService<Entity extends object>
 
   readonly useSoftDelete: boolean;
 
+  readonly aggregateStrategy: AggregateStrategy;
+
   constructor(
     readonly repo: EntityRepository<Entity>,
     opts?: MikroOrmQueryServiceOpts<Entity>,
@@ -67,6 +80,7 @@ export class MikroOrmQueryService<Entity extends object>
     super();
     this.filterQueryBuilder = opts?.filterQueryBuilder ?? new FilterQueryBuilder<Entity>(this.repo);
     this.useSoftDelete = opts?.useSoftDelete ?? false;
+    this.aggregateStrategy = opts?.aggregateStrategy ?? new InMemoryAggregateStrategy();
     const serializer = getAssemblerSerializer(this.EntityClass);
     if (!serializer) {
       AssemblerSerializer((e: Entity) => {
@@ -170,13 +184,17 @@ export class MikroOrmQueryService<Entity extends object>
     filter: Filter<Entity>,
     aggregate: AggregateQuery<Entity>,
   ): Promise<AggregateResponse<Entity>[]> {
-    // Build find options for the filter and fetch matching rows, then compute aggregates in-memory
-    const where = this.buildWhereFromFilter(filter);
-    const rows = (await this.em.find(this.EntityClass, where)) as unknown[];
+    const meta = this.metadata;
+    const records = await this.aggregateStrategy.execute<Entity>({
+      em: this.em,
+      meta,
+      where: this.buildWhereFromFilter(filter),
+      aggregate,
+    });
 
-    // Compute aggregates in memory so the implementation stays database-agnostic
-    return AggregateBuilder.computeAggregates(rows, aggregate).map(
-      (record) => AggregateBuilder.convertToAggregateResponse<Entity>([record])[0],
+    // normalize first: every strategy answers in its backend's own currency
+    return AggregateBuilder.convertToAggregateResponse<Entity>(
+      normalizeAggregateRecords(records, meta),
     );
   }
 

@@ -413,13 +413,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 10,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 10,
             stringType: 'foo9',
             testEntityPk: 'test-entity-9',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             testEntityPk: 'test-entity-1',
@@ -457,7 +457,7 @@ describe('MikroOrmQueryService', (): void => {
       return expect(queryResult).toEqual([
         {
           groupBy: {
-            boolType: 0,
+            boolType: false,
           },
           avg: {
             numberType: 5,
@@ -466,13 +466,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 5,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 9,
             stringType: 'foo9',
             testEntityPk: 'test-entity-9',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             testEntityPk: 'test-entity-1',
@@ -483,7 +483,7 @@ describe('MikroOrmQueryService', (): void => {
         },
         {
           groupBy: {
-            boolType: 1,
+            boolType: true,
           },
           avg: {
             numberType: 6,
@@ -492,13 +492,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 5,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 10,
             stringType: 'foo8',
             testEntityPk: 'test-entity-8',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo10',
             testEntityPk: 'test-entity-10',
@@ -541,13 +541,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 3,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 3,
             stringType: 'foo3',
             testEntityPk: 'test-entity-3',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             testEntityPk: 'test-entity-1',
@@ -585,7 +585,7 @@ describe('MikroOrmQueryService', (): void => {
       return expect(queryResult).toEqual([
         {
           groupBy: {
-            boolType: 0,
+            boolType: false,
           },
           avg: {
             numberType: 2,
@@ -594,13 +594,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 2,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 3,
             stringType: 'foo3',
             testEntityPk: 'test-entity-3',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             testEntityPk: 'test-entity-1',
@@ -611,7 +611,7 @@ describe('MikroOrmQueryService', (): void => {
         },
         {
           groupBy: {
-            boolType: 1,
+            boolType: true,
           },
           avg: {
             numberType: 2,
@@ -620,13 +620,13 @@ describe('MikroOrmQueryService', (): void => {
             testEntityPk: 1,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo2',
             testEntityPk: 'test-entity-2',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo2',
             testEntityPk: 'test-entity-2',

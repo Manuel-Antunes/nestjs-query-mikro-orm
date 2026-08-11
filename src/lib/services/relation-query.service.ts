@@ -21,6 +21,8 @@ import type {
 } from '@ptc-org/nestjs-query-core';
 import { AssemblerFactory } from '@ptc-org/nestjs-query-core';
 
+import type { AggregateStrategy } from '../aggregate/aggregate.strategy';
+import { normalizeAggregateRecords } from '../aggregate/aggregate.normalizer';
 import type { FilterQueryBuilder, FindWhere } from '../query/index';
 import { AggregateBuilder, RelationQueryBuilder } from '../query/index';
 
@@ -42,6 +44,9 @@ export abstract class RelationQueryService<Entity extends object> {
   abstract EntityClass: Class<Entity>;
 
   abstract repo: EntityRepository<Entity>;
+
+  /** Shared with the relation query builders so relation aggregates use the same strategy. */
+  abstract aggregateStrategy: AggregateStrategy;
 
   abstract getById(id: string | number, opts?: GetByIdOptions<Entity>): Promise<Entity>;
 
@@ -133,7 +138,9 @@ export abstract class RelationQueryService<Entity extends object> {
       assembler.convertQuery({ filter }),
       assembler.convertAggregateQuery(aggregate),
     );
-    const aggResponse = AggregateBuilder.convertToAggregateResponse(rawResults);
+    const aggResponse = AggregateBuilder.convertToAggregateResponse(
+      normalizeAggregateRecords(rawResults, relationQueryBuilder.relationMetadata),
+    );
     return aggResponse.map((agg) => {
       const res = assembler.convertAggregateResponse(agg);
       return res;
@@ -482,7 +489,7 @@ export abstract class RelationQueryService<Entity extends object> {
   getRelationQueryBuilder<Relation extends object>(
     name: string,
   ): RelationQueryBuilder<Entity, Relation> {
-    return new RelationQueryBuilder(this.repo, name);
+    return new RelationQueryBuilder(this.repo, name, this.aggregateStrategy);
   }
 
   /**
@@ -552,8 +559,12 @@ export abstract class RelationQueryService<Entity extends object> {
     );
 
     const results = new Map<Entity, AggregateResponse<Relation>[]>();
+    // resolved once: the getter walks the metadata store, and this loop runs per owner
+    const relationMetadata = relationQueryBuilder.relationMetadata;
     batched.forEach((rawAggregates, entity) => {
-      const aggResponse = AggregateBuilder.convertToAggregateResponse(rawAggregates);
+      const aggResponse = AggregateBuilder.convertToAggregateResponse(
+        normalizeAggregateRecords(rawAggregates, relationMetadata),
+      );
       results.set(
         entity,
         aggResponse.map((agg) => assembler.convertAggregateResponse(agg)),

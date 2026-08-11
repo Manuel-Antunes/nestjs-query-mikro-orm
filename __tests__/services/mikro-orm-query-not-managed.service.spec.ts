@@ -483,13 +483,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 10,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 10,
             stringType: 'foo9',
             id: 'test-entity-9',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             id: 'test-entity-1',
@@ -527,7 +527,7 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
       return expect(queryResult).toEqual([
         {
           groupBy: {
-            boolType: 0,
+            boolType: false,
           },
           avg: {
             numberType: 5,
@@ -536,13 +536,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 5,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 9,
             stringType: 'foo9',
             id: 'test-entity-9',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             id: 'test-entity-1',
@@ -553,7 +553,7 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
         },
         {
           groupBy: {
-            boolType: 1,
+            boolType: true,
           },
           avg: {
             numberType: 6,
@@ -562,13 +562,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 5,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 10,
             stringType: 'foo8',
             id: 'test-entity-8',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo10',
             id: 'test-entity-10',
@@ -611,13 +611,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 3,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 3,
             stringType: 'foo3',
             id: 'test-entity-3',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             id: 'test-entity-1',
@@ -655,7 +655,7 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
       return expect(queryResult).toEqual([
         {
           groupBy: {
-            boolType: 0,
+            boolType: false,
           },
           avg: {
             numberType: 2,
@@ -664,13 +664,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 2,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 3,
             stringType: 'foo3',
             id: 'test-entity-3',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 1,
             stringType: 'foo1',
             id: 'test-entity-1',
@@ -681,7 +681,7 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
         },
         {
           groupBy: {
-            boolType: 1,
+            boolType: true,
           },
           avg: {
             numberType: 2,
@@ -690,13 +690,13 @@ describe('MikroOrmQueryService (Not Managed)', (): void => {
             id: 1,
           },
           max: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo2',
             id: 'test-entity-2',
           },
           min: {
-            dateType: expect.any(Number),
+            dateType: expect.any(Date),
             numberType: 2,
             stringType: 'foo2',
             id: 'test-entity-2',

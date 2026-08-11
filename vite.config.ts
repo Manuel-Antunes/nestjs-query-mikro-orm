@@ -25,6 +25,10 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
+      // only the published sources are worth a coverage number; tooling config and the benchmark
+      // are neither shipped nor meant to be exercised by the suite
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.spec.ts'],
     },
   },
 }));

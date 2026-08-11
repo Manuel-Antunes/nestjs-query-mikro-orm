@@ -8,7 +8,45 @@ import {
   getQueryServiceToken,
 } from '@ptc-org/nestjs-query-core';
 
+import type { AggregateStrategy } from './aggregate';
 import { MikroOrmQueryService } from './services';
+
+/**
+ * The service options a whole `forFeature` call can share.
+ *
+ * `filterQueryBuilder` is deliberately absent: it is typed against one entity and needs that
+ * entity's repository to construct, so it can only be set by a service that owns both.
+ */
+export interface MikroOrmQueryServiceDefaults {
+  /** Turn `deleteOne`/`deleteMany` into a `deletedAt` write, and enable `restoreOne`/`restoreMany`. */
+  useSoftDelete?: boolean;
+
+  /**
+   * How aggregates are computed. Defaults to `InMemoryAggregateStrategy`.
+   *
+   * The instance is shared by every service the call registers, which is what you want - the
+   * strategies are stateless, and one per connection is the natural granularity.
+   */
+  aggregateStrategy?: AggregateStrategy;
+}
+
+/**
+ * What `forFeature` accepts after the entity list.
+ *
+ * A bare string still means the MikroORM context name, so existing calls keep working.
+ */
+export type ForFeatureOptions = MikroOrmQueryServiceDefaults & {
+  /** The MikroORM context (connection) name the repositories come from. */
+  contextName?: string;
+};
+
+/** Normalizes the `string | options` second argument into one shape. */
+export const toForFeatureOptions = (
+  contextNameOrOptions?: string | ForFeatureOptions,
+): ForFeatureOptions =>
+  typeof contextNameOrOptions === 'string'
+    ? { contextName: contextNameOrOptions }
+    : (contextNameOrOptions ?? {});
 
 /**
  * Registers an entity whose query service should speak a DTO rather than the entity itself.
@@ -18,7 +56,10 @@ import { MikroOrmQueryService } from './services';
  * with `@Assembler(DTO, Entity)`, or a pass-through one when the pair has none. Pass `assembler`
  * to name the class explicitly instead of going through the registry.
  */
-export interface EntityServiceOptions<DTO extends object = object, Entity extends object = object> {
+export interface EntityServiceOptions<
+  DTO extends object = object,
+  Entity extends object = object,
+> extends MikroOrmQueryServiceDefaults {
   entity: EntityName<Entity>;
   dto?: Class<DTO>;
   assembler?: Class<Assembler<DTO, Entity>>;
@@ -71,13 +112,14 @@ function createMikroOrmQueryServiceProvider<DTO extends object, Entity extends o
   contextName?: string,
   DTOClass?: Class<DTO>,
   AssemblerClass?: Class<Assembler<DTO, Entity>>,
+  serviceOpts: MikroOrmQueryServiceDefaults = {},
 ): FactoryProvider {
   return {
     // the token is derived from the class name; `EntityName` also admits a bare string, which the
     // helper cannot key on, so registering such an entity requires the options form with a `dto`
     provide: getQueryServiceToken((DTOClass ?? EntityClass) as { name: string }),
     useFactory(repo: EntityRepository<Entity>) {
-      const queryService = new MikroOrmQueryService(repo);
+      const queryService = new MikroOrmQueryService(repo, serviceOpts);
 
       if (AssemblerClass) {
         return new AssemblerQueryService(new AssemblerClass(), queryService);
@@ -104,15 +146,22 @@ function createMikroOrmQueryServiceProvider<DTO extends object, Entity extends o
 
 export const createMikroOrmQueryServiceProviders = <const Defs extends readonly unknown[]>(
   definitions: EntityServiceDefinitions<Defs>,
-  contextName?: string,
-): FactoryProvider[] =>
-  (definitions as readonly EntityServiceDefinition[]).map((definition) =>
-    isEntityServiceOptions(definition)
-      ? createMikroOrmQueryServiceProvider(
-          definition.entity,
-          contextName,
-          definition.dto,
-          definition.assembler,
-        )
-      : createMikroOrmQueryServiceProvider(definition, contextName),
-  );
+  contextNameOrOptions?: string | ForFeatureOptions,
+): FactoryProvider[] => {
+  const { contextName, ...defaults } = toForFeatureOptions(contextNameOrOptions);
+
+  return (definitions as readonly EntityServiceDefinition[]).map((definition) => {
+    if (!isEntityServiceOptions(definition)) {
+      return createMikroOrmQueryServiceProvider(definition, contextName, undefined, undefined, {
+        ...defaults,
+      });
+    }
+
+    const { entity, dto, assembler, ...overrides } = definition;
+    // an entry may opt out of the shared defaults - soft delete rarely applies to every entity
+    return createMikroOrmQueryServiceProvider(entity, contextName, dto, assembler, {
+      ...defaults,
+      ...overrides,
+    });
+  });
+};

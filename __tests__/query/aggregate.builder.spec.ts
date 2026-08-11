@@ -1,63 +1,26 @@
-import type { AggregateQuery } from '@ptc-org/nestjs-query-core';
+import { describe, expect, it } from 'vitest';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AggregateBuilder } from '../../src/lib/query';
-import { closeTestConnection, createTestConnection } from '../__fixtures__/connection.fixture';
 import { TestEntity } from '../__fixtures__/test.entity';
 
 describe('AggregateBuilder', (): void => {
-  beforeEach(createTestConnection);
-  afterEach(closeTestConnection);
-
-  const getSelects = (agg: AggregateQuery<TestEntity>) =>
-    AggregateBuilder.buildSelectExpressions<TestEntity>(agg, 'TestEntity');
-
-  it('should throw an error if no selects are generated', (): void => {
-    expect(() => AggregateBuilder.buildSelectExpressions({}, 'TestEntity')).toThrow(
-      'No aggregate fields found.',
-    );
+  describe('.getAggregateAlias', () => {
+    it('should name a column after the function and the property', () => {
+      expect(AggregateBuilder.getAggregateAlias<TestEntity>('COUNT', 'testEntityPk')).toBe(
+        'COUNT_testEntityPk',
+      );
+      expect(AggregateBuilder.getAggregateAlias<TestEntity>('MAX', 'dateType')).toBe(
+        'MAX_dateType',
+      );
+    });
   });
 
-  it('should create selects for all aggregate functions', (): void => {
-    const selects = getSelects({
-      count: [{ field: 'testEntityPk', args: {} }],
-      avg: [{ field: 'numberType', args: {} }],
-      sum: [{ field: 'numberType', args: {} }],
-      max: [
-        { field: 'stringType', args: {} },
-        { field: 'dateType', args: {} },
-        { field: 'numberType', args: {} },
-      ],
-      min: [
-        { field: 'stringType', args: {} },
-        { field: 'dateType', args: {} },
-        { field: 'numberType', args: {} },
-      ],
+  describe('.getGroupByAlias', () => {
+    it('should prefix a grouped column', () => {
+      expect(AggregateBuilder.getGroupByAlias<TestEntity>('stringType')).toBe(
+        'GROUP_BY_stringType',
+      );
     });
-    expect(selects.map((s) => s[0]).join(',')).toContain('COUNT');
-  });
-
-  it('should create selects for all aggregate functions and group bys', (): void => {
-    const selects = getSelects({
-      groupBy: [
-        { field: 'stringType', args: {} },
-        { field: 'boolType', args: {} },
-      ],
-      count: [{ field: 'testEntityPk', args: {} }],
-    });
-    expect(selects.map((s) => s[1]).join(',')).toContain('GROUP_BY');
-  });
-
-  it('should only generate selects for requested aggregate functions', (): void => {
-    const selects = getSelects({
-      sum: [{ field: 'numberType', args: {} }],
-    });
-    const selectExprs = selects.map((s) => s[0]).join(',');
-    expect(selectExprs).toContain('SUM');
-    expect(selectExprs).not.toContain('COUNT');
-    expect(selectExprs).not.toContain('AVG');
-    expect(selectExprs).not.toContain('MAX');
-    expect(selectExprs).not.toContain('MIN');
   });
 
   describe('.convertToAggregateResponse', () => {
@@ -86,6 +49,54 @@ describe('AggregateBuilder', (): void => {
       ]);
     });
 
+    it('should convert one record per group', () => {
+      const dbResult = [
+        { GROUP_BY_boolType: true, COUNT_testEntityPk: 5 },
+        { GROUP_BY_boolType: false, COUNT_testEntityPk: 5 },
+      ];
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
+        { groupBy: { boolType: true }, count: { testEntityPk: 5 } },
+        { groupBy: { boolType: false }, count: { testEntityPk: 5 } },
+      ]);
+    });
+
+    it('should read the grouped columns MongoDB nests under _id', () => {
+      const dbResult = [
+        {
+          _id: { GROUP_BY_boolType: true },
+          COUNT_testEntityPk: 5,
+        },
+      ];
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
+        { groupBy: { boolType: true }, count: { testEntityPk: 5 } },
+      ]);
+    });
+
+    it('should ignore the ungrouped _id MongoDB reports as null', () => {
+      const dbResult = [{ _id: null, COUNT_testEntityPk: 10 }];
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
+        { count: { testEntityPk: 10 } },
+      ]);
+    });
+
+    it('should accept the lower case aliases some drivers fold columns into', () => {
+      const dbResult = [{ count_testEntityPk: 3, group_by_stringType: 'a' }];
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
+        { count: { testEntityPk: 3 }, groupBy: { stringType: 'a' } },
+      ]);
+    });
+
+    it('should merge several columns into the same bucket', () => {
+      const dbResult = [{ MAX_numberType: 10, MAX_stringType: 'z' }];
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toEqual([
+        { max: { numberType: 10, stringType: 'z' } },
+      ]);
+    });
+
+    it('should return nothing for no records', () => {
+      expect(AggregateBuilder.convertToAggregateResponse<TestEntity>([])).toEqual([]);
+    });
+
     it('should throw an error if a column is not expected', () => {
       const dbResult = [
         {
@@ -95,6 +106,23 @@ describe('AggregateBuilder', (): void => {
       expect(() => AggregateBuilder.convertToAggregateResponse<TestEntity>(dbResult)).toThrow(
         'Unknown aggregate column encountered.',
       );
+    });
+  });
+
+  describe('.asyncConvertToAggregateResponse', () => {
+    it('should await the records before converting them', async () => {
+      const dbResult = Promise.resolve([{ COUNT_testEntityPk: 7 }]);
+      await expect(
+        AggregateBuilder.asyncConvertToAggregateResponse<TestEntity>(dbResult),
+      ).resolves.toEqual([{ count: { testEntityPk: 7 } }]);
+    });
+
+    it('should surface a rejection from the records it was given', async () => {
+      await expect(
+        AggregateBuilder.asyncConvertToAggregateResponse<TestEntity>(
+          Promise.reject(new Error('query failed')),
+        ),
+      ).rejects.toThrow('query failed');
     });
   });
 });

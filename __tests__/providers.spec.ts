@@ -9,7 +9,7 @@ import {
 } from '@ptc-org/nestjs-query-core';
 
 import { createMikroOrmQueryServiceProviders } from '../src/lib/providers';
-import { MikroOrmQueryService } from '../src';
+import { InMemoryAggregateStrategy, MikroOrmQueryService } from '../src';
 
 class TestEntity {
   id!: string;
@@ -114,6 +114,82 @@ describe('createMikroOrmQueryServiceProviders', () => {
     const service = provider.useFactory(repoStub(TestEntity));
     expect(service).toBeInstanceOf(AssemblerQueryService);
     expect(service.assembler).toBeInstanceOf(TestAssembler);
+  });
+
+  describe('service options', () => {
+    it('should hand the shared options to every service it registers', () => {
+      const aggregateStrategy = new InMemoryAggregateStrategy();
+      const providers = createMikroOrmQueryServiceProviders([TestEntity, { entity: TestEntity }], {
+        aggregateStrategy,
+        useSoftDelete: true,
+      });
+
+      providers.forEach((provider) => {
+        const service = provider.useFactory(
+          repoStub(TestEntity),
+        ) as MikroOrmQueryService<TestEntity>;
+        expect(service.aggregateStrategy).toBe(aggregateStrategy);
+        expect(service.useSoftDelete).toBe(true);
+      });
+    });
+
+    it('should let an entry override the shared options', () => {
+      const shared = new InMemoryAggregateStrategy();
+      const mine = new InMemoryAggregateStrategy();
+      const [plain, overridden] = createMikroOrmQueryServiceProviders(
+        [TestEntity, { entity: TestEntity, aggregateStrategy: mine, useSoftDelete: false }],
+        { aggregateStrategy: shared, useSoftDelete: true },
+      );
+
+      const plainService = plain.useFactory(
+        repoStub(TestEntity),
+      ) as MikroOrmQueryService<TestEntity>;
+      const ownService = overridden.useFactory(
+        repoStub(TestEntity),
+      ) as MikroOrmQueryService<TestEntity>;
+
+      expect(plainService.aggregateStrategy).toBe(shared);
+      expect(plainService.useSoftDelete).toBe(true);
+      expect(ownService.aggregateStrategy).toBe(mine);
+      expect(ownService.useSoftDelete).toBe(false);
+    });
+
+    it('should reach the service behind an assembler too', () => {
+      const aggregateStrategy = new InMemoryAggregateStrategy();
+      const [provider] = createMikroOrmQueryServiceProviders(
+        [{ entity: TestEntity, dto: TestDto }],
+        { aggregateStrategy },
+      );
+      const service = provider.useFactory(repoStub(TestEntity)) as AssemblerQueryService<
+        TestDto,
+        TestEntity
+      >;
+
+      expect((service.queryService as MikroOrmQueryService<TestEntity>).aggregateStrategy).toBe(
+        aggregateStrategy,
+      );
+    });
+
+    it('should default to an in-memory strategy when nothing is given', () => {
+      const [provider] = createMikroOrmQueryServiceProviders([TestEntity]);
+      const service = provider.useFactory(repoStub(TestEntity)) as MikroOrmQueryService<TestEntity>;
+
+      expect(service.aggregateStrategy).toBeInstanceOf(InMemoryAggregateStrategy);
+      expect(service.useSoftDelete).toBe(false);
+    });
+
+    it('should still accept a bare context name as the second argument', () => {
+      const [provider] = createMikroOrmQueryServiceProviders([TestEntity], 'other-connection');
+      expect(provider.inject).toEqual([getRepositoryToken(TestEntity, 'other-connection')]);
+    });
+
+    it('should read the context name out of the options object', () => {
+      const [provider] = createMikroOrmQueryServiceProviders([TestEntity], {
+        contextName: 'other-connection',
+        useSoftDelete: true,
+      });
+      expect(provider.inject).toEqual([getRepositoryToken(TestEntity, 'other-connection')]);
+    });
   });
 
   it('should pass the context name on to the repository token', () => {
