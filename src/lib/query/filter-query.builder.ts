@@ -128,8 +128,7 @@ export class FilterQueryBuilder<Entity extends object> {
       {} as Record<string, unknown>,
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return qb.orderBy!(orderBy as any) as Q;
+    return qb.orderBy!(orderBy) as Q;
   }
 
   applyGroupBy<Q extends QueryBuilder<Entity>>(
@@ -165,29 +164,7 @@ export class FilterQueryBuilder<Entity extends object> {
       {} as Record<string, string>,
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return qb.orderBy!(orderBy as any) as Q;
-  }
-
-  /**
-   * Create a MikroORM QueryBuilder.
-   */
-  private createQueryBuilder(alias?: string): QueryBuilder<Entity> {
-    // `EntityRepository` typings may vary across MikroORM packages; use `any` at
-    // the callsite to access the runtime helper without a hard dependency on
-    // driver's repository type declarations.
-    return (
-      this.repo as unknown as { createQueryBuilder?: (alias?: string) => QueryBuilder<Entity> }
-    ).createQueryBuilder?.(alias) as QueryBuilder<Entity>;
-  }
-
-  /**
-   * Gets the entity alias based on the entity name.
-   */
-  private getEntityAlias(): string {
-    const em = this.repo.getEntityManager();
-    const meta = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
-    return meta.className;
+    return qb.orderBy!(orderBy) as Q;
   }
 
   /**
@@ -229,7 +206,7 @@ export class FilterQueryBuilder<Entity extends object> {
       actualFilter = {};
     } else {
       // Called as (filter) - backward compatible
-      metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
+      metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<Entity>);
       actualFilter = metadataOrFilter as Filter<unknown>;
     }
 
@@ -250,7 +227,7 @@ export class FilterQueryBuilder<Entity extends object> {
       const nestedFilter = currFilterValue as Filter<unknown>;
       const targetMeta = em
         .getMetadata()
-        .get(referencedRelation.type as unknown as EntityName<any>);
+        .get(referencedRelation.type as unknown as EntityName<Entity>);
       const nestedRelations = nestedFilter
         ? this.getReferencedRelationsRecursiveInternal(targetMeta, nestedFilter)
         : {};
@@ -282,7 +259,7 @@ export class FilterQueryBuilder<Entity extends object> {
       const nestedFilter = currFilterValue as Filter<unknown>;
       const targetMeta = em
         .getMetadata()
-        .get(referencedRelation.type as unknown as EntityName<any>);
+        .get(referencedRelation.type as unknown as EntityName<Entity>);
       const nestedRelations = nestedFilter
         ? this.getReferencedRelationsRecursiveInternal(targetMeta, nestedFilter)
         : {};
@@ -296,7 +273,9 @@ export class FilterQueryBuilder<Entity extends object> {
 
   private get relationNames(): string[] {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
+    const metadata = em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
     return metadata.relations.map((r) => r.name);
   }
 }

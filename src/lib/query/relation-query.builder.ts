@@ -1,4 +1,5 @@
 import type {
+  EntityKey,
   EntityName,
   EntityProperty,
   EntityRepository,
@@ -8,13 +9,21 @@ import type {
 import { Collection, PopulateHint, Reference, wrap } from '@mikro-orm/core';
 import type { AggregateQuery, Query } from '@ptc-org/nestjs-query-core';
 
+import { AggregateBuilder } from './aggregate.builder';
 import { FilterQueryBuilder } from './filter-query.builder';
 
 export type EntityIndexRelation<Relation> = Relation & {
   __nestjsQuery__entityIndex__: number;
 };
 
-type AggregateFunction = 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN';
+/**
+ * The `where` shape `em.find`/`em.count` accept.
+ *
+ * They declare it as `FilterQuery<NoInfer<T>>`, and TypeScript keeps `NoInfer<T>` opaque while `T`
+ * is still an unresolved type parameter - so conditions built here have to be handed over in that
+ * exact form rather than as a plain `FilterQuery<T>`.
+ */
+export type FindWhere<T> = FilterQuery<NoInfer<T>>;
 
 /**
  * The per-relation overrides handed to MikroORM's `populateHints`, so a batched
@@ -82,9 +91,9 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     if (options?.offset !== undefined) findOptions.offset = options.offset;
 
     // Use em.find to fetch relations directly; this is database-agnostic and avoids QueryBuilder
-    return (await em.find(
-      RelationEntity as unknown as EntityName<any>,
-      finalWhere as unknown as FilterQuery<Relation>,
+    return (await em.find<Relation>(
+      RelationEntity as unknown as EntityName<Relation>,
+      finalWhere as unknown as FindWhere<Relation>,
       findOptions as Record<string, unknown>,
     )) as Relation[];
   }
@@ -153,9 +162,9 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     const finalWhere = filterQuery
       ? ({ $and: [baseWhere, filterQuery] } as FilterQuery<Relation>)
       : baseWhere;
-    return em.count(
-      RelationEntity as unknown as EntityName<any>,
-      finalWhere as unknown as FilterQuery<Relation>,
+    return em.count<Relation>(
+      RelationEntity as unknown as EntityName<Relation>,
+      finalWhere as unknown as FindWhere<Relation>,
     );
   }
 
@@ -178,9 +187,9 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
       : baseWhere;
 
     // fetch all matching relations (no paging)
-    const rows = (await em.find(
-      RelationEntity as unknown as EntityName<any>,
-      finalWhere as unknown as FilterQuery<Relation>,
+    const rows = (await em.find<Relation>(
+      RelationEntity as unknown as EntityName<Relation>,
+      finalWhere as unknown as FindWhere<Relation>,
     )) as unknown[];
 
     return this.computeAggregates(rows, aggregateQuery);
@@ -238,7 +247,7 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     const em = this.repo.getEntityManager();
     const relationEntityMeta = em
       .getMetadata()
-      .get(relationMeta.type as unknown as EntityName<any>);
+      .get(relationMeta.type as unknown as EntityName<Relation>);
     const relationPrimaryKey = relationEntityMeta.primaryKeys[0];
 
     if (relationMeta.kind === '1:m') {
@@ -295,7 +304,7 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
   ): Promise<Map<Entity, Relation[]>> {
     const em = this.repo.getEntityManager();
     const relationMeta = this.getRelationMeta();
-    const RelationEntity = relationMeta.type as unknown as EntityName<any>;
+    const RelationEntity = relationMeta.type as unknown as EntityName<Relation>;
     const findOptions: Record<string, unknown> = orderBy ? { orderBy } : {};
     const results = new Map<Entity, Relation[]>();
 
@@ -314,9 +323,12 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
         return results;
       }
 
-      const rows = (await em.find(
+      const rows = (await em.find<Relation>(
         RelationEntity,
-        this.andWhere({ [plan.relationPrimaryKey]: { $in: values } }, filterQuery),
+        this.andWhere(
+          { [plan.relationPrimaryKey]: { $in: values } },
+          filterQuery,
+        ) as FindWhere<Relation>,
         findOptions,
       )) as Relation[];
 
@@ -344,7 +356,7 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
 
     const entityMeta = em
       .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
     const primaryKeys = entityMeta.primaryKeys;
     const keys = entities.map((entity) => this.getPrimaryKeyValues(entity, primaryKeys));
 
@@ -367,9 +379,9 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
         ? { [plan.ownerProperty]: { $in: conditions.map((c) => c[primaryKeys[0]]) } }
         : { $or: conditions.map((c) => ({ [plan.ownerProperty]: c })) };
 
-    const rows = (await em.find(
+    const rows = (await em.find<Relation>(
       RelationEntity,
-      this.andWhere(ownerWhere, filterQuery),
+      this.andWhere(ownerWhere, filterQuery) as FindWhere<Relation>,
       findOptions,
     )) as Relation[];
 
@@ -420,7 +432,7 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     const em = this.repo.getEntityManager();
     const entityMeta = em
       .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
     const primaryKeys = entityMeta.primaryKeys;
     const keys = entities.map((entity) => this.getPrimaryKeyValues(entity, primaryKeys));
 
@@ -462,11 +474,11 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
       findOptions.populateHints = { [this.relation]: hints };
     }
 
-    const parents = (await em.find(
-      this.repo.getEntityName() as unknown as EntityName<any>,
+    const parents = (await em.find<Entity>(
+      this.repo.getEntityName() as unknown as EntityName<Entity>,
       (primaryKeys.length === 1
         ? { [primaryKeys[0]]: { $in: conditions.map((c) => c[primaryKeys[0]]) } }
-        : { $or: conditions }) as unknown as FilterQuery<Entity>,
+        : { $or: conditions }) as unknown as FindWhere<Entity>,
       findOptions,
     )) as Entity[];
 
@@ -589,104 +601,15 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
    * Computes the requested aggregates over already fetched rows, so the behaviour is identical
    * for every driver.
    */
+  /**
+   * Reduces the loaded relations into aggregate records, keyed the way
+   * {@link AggregateBuilder.convertToAggregateResponse} expects to read them back.
+   */
   private computeAggregates(
     rows: unknown[],
     aggregateQuery: AggregateQuery<Relation>,
   ): Record<string, unknown>[] {
-    const groupBy = aggregateQuery.groupBy ?? [];
-
-    if (groupBy.length === 0) {
-      return [this.computeAggregateRecord(rows, aggregateQuery)];
-    }
-
-    // Group the rows by the values of every groupBy field, keeping the values around so they can
-    // be reported back without having to parse them out of the group key again.
-    const groups = new Map<string, { values: unknown[]; rows: unknown[] }>();
-    rows.forEach((row) => {
-      const values = groupBy.map((field) => (row as Record<string, unknown>)[String(field)]);
-      const key = JSON.stringify(values);
-      const group = groups.get(key) ?? { values, rows: [] };
-      group.rows.push(row);
-      groups.set(key, group);
-    });
-
-    return Array.from(groups.values()).map(({ values, rows: groupRows }) => {
-      const seed: Record<string, unknown> = {};
-      groupBy.forEach((field, i) => {
-        const value = values[i];
-        // Normalize boolean group values to 0/1 to match SQL behavior in tests
-        seed[`GROUP_BY_${String(field)}`] = typeof value === 'boolean' ? (value ? 1 : 0) : value;
-      });
-      return this.computeAggregateRecord(groupRows, aggregateQuery, seed);
-    });
-  }
-
-  private computeAggregateRecord(
-    rows: unknown[],
-    aggregateQuery: AggregateQuery<Relation>,
-    seed: Record<string, unknown> = {},
-  ): Record<string, unknown> {
-    const out: Record<string, unknown> = { ...seed };
-    const aggregates = aggregateQuery as unknown as Record<string, (keyof Relation)[] | undefined>;
-    const functions: [AggregateFunction, string][] = [
-      ['COUNT', 'count'],
-      ['SUM', 'sum'],
-      ['AVG', 'avg'],
-      ['MAX', 'max'],
-      ['MIN', 'min'],
-    ];
-
-    functions.forEach(([fn, key]) => {
-      (aggregates[key] ?? []).forEach((field) =>
-        this.computeAggregateField(rows, out, fn, String(field)),
-      );
-    });
-
-    return out;
-  }
-
-  private computeAggregateField(
-    rows: unknown[],
-    out: Record<string, unknown>,
-    fn: AggregateFunction,
-    field: string,
-  ): void {
-    const aggKey = `${fn}_${field}`;
-    const values = rows
-      .map((row) => (row as Record<string, unknown>)[field])
-      .filter((value) => value !== undefined && value !== null);
-
-    if (fn === 'COUNT') {
-      out[aggKey] = values.length;
-      return;
-    }
-
-    if (values.length === 0) {
-      out[aggKey] = null;
-      return;
-    }
-
-    const isNumeric = (value: unknown) => typeof value === 'number' || value instanceof Date;
-    const toNumbers = () => values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
-
-    if (fn === 'SUM' || fn === 'AVG') {
-      // SUM and AVG only for numeric values
-      const nums = toNumbers().filter((n) => !Number.isNaN(n));
-      const sum = nums.reduce((s: number, v: number) => s + v, 0);
-      out[aggKey] = fn === 'SUM' ? sum : nums.length ? sum / nums.length : null;
-      return;
-    }
-
-    if (values.every(isNumeric)) {
-      const nums = toNumbers();
-      out[aggKey] = fn === 'MAX' ? Math.max(...nums) : Math.min(...nums);
-      return;
-    }
-
-    out[aggKey] = values.reduce((a, b) => {
-      const isGreater = String(a) > String(b);
-      return (fn === 'MAX') === isGreater ? a : b;
-    });
+    return AggregateBuilder.computeAggregates(rows, aggregateQuery);
   }
 
   /**
@@ -794,10 +717,10 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     const em = this.repo.getEntityManager();
     const entityMeta = em
       .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
     const relationEntityMeta = em
       .getMetadata()
-      .get(relationMeta.type as unknown as EntityName<any>);
+      .get(relationMeta.type as unknown as EntityName<Relation>);
     const entityPrimaryKey = entityMeta.primaryKeys[0];
     const relationPrimaryKey = relationEntityMeta.primaryKeys[0];
     const entityId = (entity as Record<string, unknown>)[entityPrimaryKey];
@@ -849,8 +772,10 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
 
   private getRelationMeta(): EntityProperty<Entity> {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
-    const relationProp = metadata.properties[this.relation];
+    const metadata = em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
+    const relationProp = metadata.properties[this.relation as EntityKey<Entity>];
 
     if (!relationProp) {
       throw new Error(`Unable to find relation '${this.relation}' on entity`);
@@ -871,7 +796,7 @@ export class RelationQueryBuilder<Entity extends object, Relation extends object
     const relationMeta = this.getRelationMeta();
     const relationEntityMeta = em
       .getMetadata()
-      .get(relationMeta.type as unknown as EntityName<any>);
+      .get(relationMeta.type as unknown as EntityName<Relation>);
 
     return relationEntityMeta.primaryKeys.map((pk) => {
       const prop = relationEntityMeta.properties[pk];

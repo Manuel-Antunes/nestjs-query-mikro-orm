@@ -13,33 +13,44 @@ describe('AggregateBuilder', (): void => {
     AggregateBuilder.buildSelectExpressions<TestEntity>(agg, 'TestEntity');
 
   it('should throw an error if no selects are generated', (): void => {
-    expect(() => AggregateBuilder.buildSelectExpressions({}, 'TestEntity' as any)).toThrow(
+    expect(() => AggregateBuilder.buildSelectExpressions({}, 'TestEntity')).toThrow(
       'No aggregate fields found.',
     );
   });
 
   it('should create selects for all aggregate functions', (): void => {
     const selects = getSelects({
-      count: ['testEntityPk'],
-      avg: ['numberType'],
-      sum: ['numberType'],
-      max: ['stringType', 'dateType', 'numberType'],
-      min: ['stringType', 'dateType', 'numberType'],
+      count: [{ field: 'testEntityPk', args: {} }],
+      avg: [{ field: 'numberType', args: {} }],
+      sum: [{ field: 'numberType', args: {} }],
+      max: [
+        { field: 'stringType', args: {} },
+        { field: 'dateType', args: {} },
+        { field: 'numberType', args: {} },
+      ],
+      min: [
+        { field: 'stringType', args: {} },
+        { field: 'dateType', args: {} },
+        { field: 'numberType', args: {} },
+      ],
     });
     expect(selects.map((s) => s[0]).join(',')).toContain('COUNT');
   });
 
   it('should create selects for all aggregate functions and group bys', (): void => {
     const selects = getSelects({
-      groupBy: ['stringType', 'boolType'],
-      count: ['testEntityPk'],
+      groupBy: [
+        { field: 'stringType', args: {} },
+        { field: 'boolType', args: {} },
+      ],
+      count: [{ field: 'testEntityPk', args: {} }],
     });
     expect(selects.map((s) => s[1]).join(',')).toContain('GROUP_BY');
   });
 
   it('should only generate selects for requested aggregate functions', (): void => {
     const selects = getSelects({
-      sum: ['numberType'],
+      sum: [{ field: 'numberType', args: {} }],
     });
     const selectExprs = selects.map((s) => s[0]).join(',');
     expect(selectExprs).toContain('SUM');

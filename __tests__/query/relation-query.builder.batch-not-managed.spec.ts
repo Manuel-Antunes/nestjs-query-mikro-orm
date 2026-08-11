@@ -1,4 +1,4 @@
-import type { EntityRepository } from '@mikro-orm/core';
+import type { EntityName, EntityRepository } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/core';
 import { SqliteDriver } from '@mikro-orm/sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -55,7 +55,12 @@ describe.skipIf(IS_MONGO)('RelationQueryBuilder batching (not managed)', (): voi
   ): RelationQueryBuilder<Entity, Relation> => {
     queries = [];
     return new RelationQueryBuilder(
-      orm.em.fork().getRepository(entityName) as unknown as EntityRepository<Entity>,
+      // the not-managed suite registers its entities by name, which `EntityName` no longer admits
+      orm.em
+        .fork()
+        .getRepository(
+          entityName as unknown as EntityName<Entity>,
+        ) as unknown as EntityRepository<Entity>,
       relationName,
     );
   };

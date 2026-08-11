@@ -272,7 +272,14 @@ describe.skipIf(IS_MONGO)('RelationQueryBuilder batching', (): void => {
       const result = await builderFor<TestEntity, TestRelation>(
         TestEntity,
         'testRelations',
-      ).batchAggregate(dtos, {}, { count: ['testRelationPk'], max: ['testRelationPk'] });
+      ).batchAggregate(
+        dtos,
+        {},
+        {
+          count: [{ field: 'testRelationPk', args: {} }],
+          max: [{ field: 'testRelationPk', args: {} }],
+        },
+      );
 
       expect(selectCount()).toBe(1);
       dtos.forEach((dto) => {

@@ -47,7 +47,7 @@ export type EntityJson<Props = object> = JSON<Props, EntityProps>;
 
 export abstract class BaseEntity<
   Props = object,
-  Json extends EntityJson<any> = EntityJson<Props>,
+  Json extends EntityJson = EntityJson<Props>,
 > implements IEntity<Props> {
   protected readonly _id: string;
   protected readonly props: Mutable<Props>;
@@ -61,8 +61,10 @@ export abstract class BaseEntity<
       this._createdAt = new Date();
       this._updatedAt = new Date();
     } else {
-      this._createdAt = (props as any).createdAt ?? new Date();
-      this._updatedAt = (props as any).updatedAt ?? new Date();
+      // an entity rebuilt from a persisted row carries its own timestamps in the props
+      const timestamps = props as Partial<EntityProps>;
+      this._createdAt = timestamps.createdAt ?? new Date();
+      this._updatedAt = timestamps.updatedAt ?? new Date();
     }
   }
 
@@ -70,16 +72,21 @@ export abstract class BaseEntity<
     return this._id;
   }
   update(newProps: Partial<Omit<Props, 'createdAt' | 'updatedAt'>>): void {
-    for (const key of Object.keys(newProps)) {
-      const value = (newProps as any)[key];
+    // the keys come from the caller's patch, so the writes go through an index-signature view
+    const patch = newProps as Record<string, unknown>;
+    const self = this as unknown as Record<string, unknown>;
+    const props = this.props as Record<string, unknown>;
+
+    for (const key of Object.keys(patch)) {
+      const value = patch[key];
       if (value !== undefined) {
         const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(this), key);
         if (descriptor?.set) {
           // If there's a setter, use it
-          (this as any)[key] = value;
+          self[key] = value;
         } else {
           // Otherwise, directly update props
-          (this.props as any)[key] = value;
+          props[key] = value;
         }
       }
     }
@@ -127,7 +134,7 @@ export abstract class BaseEntity<
     return data;
   }
 
-  static cast<P, T extends BaseEntity<any, any>, S extends T>(
+  static cast<P, T extends BaseEntity<object, EntityJson>, S extends T>(
     this: new (props: P, id?: string) => S,
     entity: T,
     extraProps?: Partial<P>,
@@ -136,9 +143,9 @@ export abstract class BaseEntity<
       return entity as S;
     }
 
-    const mergedProps = extraProps
-      ? { ...(entity as any).props, ...extraProps }
-      : (entity as any).props;
+    // `props` is protected, so reaching it from the static side needs a structural view
+    const sourceProps = (entity as unknown as { props: P }).props;
+    const mergedProps = extraProps ? { ...sourceProps, ...extraProps } : sourceProps;
 
     return new this(mergedProps, entity.id) as S;
   }

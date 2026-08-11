@@ -1,4 +1,10 @@
-import type { EntityName, FilterQuery, RequiredEntityData } from '@mikro-orm/core';
+import type {
+  EntityData,
+  EntityMetadata,
+  EntityName,
+  FilterQuery,
+  RequiredEntityData,
+} from '@mikro-orm/core';
 import type { EntityRepository } from '@mikro-orm/core';
 import type {
   AggregateQuery,
@@ -104,9 +110,21 @@ export class MikroOrmQueryService<Entity extends object>
   }
 
   get EntityClass(): Class<Entity> {
-    const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
-    return metadata.class as Class<Entity>;
+    return this.metadata.class as Class<Entity>;
+  }
+
+  /**
+   * The MikroORM metadata for the entity this service is bound to.
+   *
+   * `getEntityName()` hands back the registered name as a `string`, which `EntityName` no longer
+   * admits since MikroORM v7 even though the lookup resolves it by name at runtime - so the cast
+   * lives here, once, instead of at every call site.
+   */
+  private get metadata(): EntityMetadata<Entity> {
+    return this.repo
+      .getEntityManager()
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
   }
 
   /**
@@ -124,13 +142,28 @@ export class MikroOrmQueryService<Entity extends object>
    */
   async query(query: Query<Entity>): Promise<Entity[]> {
     const { filterQuery, options } = this.filterQueryBuilder.buildFindOptions(query);
-    const em = this.repo.getEntityManager();
-    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
-    if (this.useSoftDelete) {
-      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
-      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
+    const where = this.buildWhere(filterQuery as FilterQuery<Entity> | undefined);
+    return this.em.find(this.EntityClass, where, options as Record<string, unknown>);
+  }
+
+  /**
+   * Narrows an already converted filter with the soft delete condition, so every path that reads
+   * or writes rows hides soft deleted ones the same way.
+   */
+  private buildWhere(filterQuery?: FilterQuery<Entity>): FilterQuery<Entity> {
+    if (!this.useSoftDelete) {
+      return filterQuery ?? ({} as FilterQuery<Entity>);
     }
-    return em.find(this.EntityClass, where ?? {}, options as Record<string, unknown>);
+    const notDeleted = { deletedAt: null } as FilterQuery<Entity>;
+    return (filterQuery ? { $and: [filterQuery, notDeleted] } : notDeleted) as FilterQuery<Entity>;
+  }
+
+  /**
+   * Converts a `Filter` straight into the `where` a MikroORM call expects, soft delete included.
+   */
+  private buildWhereFromFilter(filter: Filter<Entity>): FilterQuery<Entity> {
+    const { filterQuery } = this.filterQueryBuilder.buildFindOptions({ filter } as Query<Entity>);
+    return this.buildWhere(filterQuery as FilterQuery<Entity> | undefined);
   }
 
   async aggregate(
@@ -138,172 +171,17 @@ export class MikroOrmQueryService<Entity extends object>
     aggregate: AggregateQuery<Entity>,
   ): Promise<AggregateResponse<Entity>[]> {
     // Build find options for the filter and fetch matching rows, then compute aggregates in-memory
-    const { filterQuery } = this.filterQueryBuilder.buildFindOptions({ filter } as Query<Entity>);
-    const em = this.repo.getEntityManager();
-    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
-    if (this.useSoftDelete) {
-      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
-      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
-    }
-    const rows = (await em.find(this.EntityClass, where ?? {})) as unknown[];
+    const where = this.buildWhereFromFilter(filter);
+    const rows = (await this.em.find(this.EntityClass, where)) as unknown[];
 
-    // Compute aggregates similar to RelationQueryBuilder (database-agnostic)
-    const aggs = aggregate;
-    const groupBy = aggs.groupBy ?? [];
-    const records: Record<string, unknown>[] = [];
-    const makeAggKey = (func: string, field: string) => `${func}_${field}`;
-    const makeGroupKey = (field: string) => `GROUP_BY_${field}`;
-
-    const isNumeric = (v: unknown) => typeof v === 'number' || v instanceof Date;
-
-    if (groupBy.length === 0) {
-      const out: Record<string, unknown> = {};
-      const computeField = (fn: 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN', field: string) => {
-        const values = rows
-          .map((r) => (r as Record<string, unknown>)[field])
-          .filter((v) => v !== undefined && v !== null);
-        if (fn === 'COUNT') {
-          out[makeAggKey('COUNT', field)] = values.length;
-          return;
-        }
-        if (values.length === 0) {
-          out[makeAggKey(fn, field)] = null;
-          return;
-        }
-        if (fn === 'SUM' || fn === 'AVG') {
-          const nums = values
-            .map((v) => (v instanceof Date ? v.getTime() : Number(v)))
-            .filter((n) => !Number.isNaN(n));
-          const sum = nums.reduce((s: number, v: number) => s + v, 0);
-          out[makeAggKey(fn, field)] = fn === 'SUM' ? sum : nums.length ? sum / nums.length : null;
-          return;
-        }
-        if (fn === 'MAX') {
-          if (values.every(isNumeric)) {
-            const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
-            out[makeAggKey('MAX', field)] = Math.max(...nums);
-          } else {
-            out[makeAggKey('MAX', field)] = values.reduce((a, b) =>
-              String(a) > String(b) ? a : b,
-            );
-          }
-          return;
-        }
-        if (fn === 'MIN') {
-          if (values.every(isNumeric)) {
-            const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
-            out[makeAggKey('MIN', field)] = Math.min(...nums);
-          } else {
-            out[makeAggKey('MIN', field)] = values.reduce((a, b) =>
-              String(a) < String(b) ? a : b,
-            );
-          }
-          return;
-        }
-      };
-      // Only add aggregate selects for functions that were requested
-      // @ts-expect-error - TypeScript is not correctly inferring the types here
-      (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
-      // @ts-expect-error - TypeScript is not correctly inferring the types here
-      (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
-      // @ts-expect-error - TypeScript is not correctly inferring the types here
-      (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
-      // @ts-expect-error - TypeScript is not correctly inferring the types here
-      (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
-      // @ts-expect-error - TypeScript is not correctly inferring the types here
-      (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
-
-      records.push(out);
-    } else {
-      const groups = new Map<string, unknown[]>();
-      rows.forEach((r) => {
-        const key = groupBy
-          .map((g) => JSON.stringify((r as Record<string, unknown>)[String(g)]))
-          .join('|');
-        const arr = groups.get(key) ?? [];
-        arr.push(r);
-        groups.set(key, arr);
-      });
-
-      groups.forEach((groupRows, key) => {
-        const parts = key.split('|').map((p) => JSON.parse(p));
-        const out: Record<string, unknown> = {};
-        groupBy.forEach((g, i) => {
-          const val = parts[i];
-          out[makeGroupKey(String(g))] = typeof val === 'boolean' ? (val ? 1 : 0) : val;
-        });
-
-        const computeField = (fn: 'COUNT' | 'SUM' | 'AVG' | 'MAX' | 'MIN', field: string) => {
-          const values = groupRows
-            .map((r) => (r as Record<string, unknown>)[field])
-            .filter((v) => v !== undefined && v !== null);
-          if (fn === 'COUNT') {
-            out[makeAggKey('COUNT', field)] = values.length;
-            return;
-          }
-          if (values.length === 0) {
-            out[makeAggKey(fn, field)] = null;
-            return;
-          }
-          if (fn === 'SUM' || fn === 'AVG') {
-            const nums = values
-              .map((v) => (v instanceof Date ? v.getTime() : Number(v)))
-              .filter((n) => !Number.isNaN(n));
-            const sum = nums.reduce((s: number, v: number) => s + v, 0);
-            out[makeAggKey(fn, field)] =
-              fn === 'SUM' ? sum : nums.length ? sum / nums.length : null;
-            return;
-          }
-          if (fn === 'MAX') {
-            if (values.every(isNumeric)) {
-              const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
-              out[makeAggKey('MAX', field)] = Math.max(...nums);
-            } else {
-              out[makeAggKey('MAX', field)] = values.reduce((a, b) =>
-                String(a) > String(b) ? a : b,
-              );
-            }
-            return;
-          }
-          if (fn === 'MIN') {
-            if (values.every(isNumeric)) {
-              const nums = values.map((v) => (v instanceof Date ? v.getTime() : Number(v)));
-              out[makeAggKey('MIN', field)] = Math.min(...nums);
-            } else {
-              out[makeAggKey('MIN', field)] = values.reduce((a, b) =>
-                String(a) < String(b) ? a : b,
-              );
-            }
-            return;
-          }
-        };
-        // @ts-expect-error - TypeScript is not correctly inferring the types here
-        (aggs.count ?? []).forEach((f: keyof Entity) => computeField('COUNT', String(f)));
-        // @ts-expect-error - TypeScript is not correctly inferring the types here
-        (aggs.sum ?? []).forEach((f: keyof Entity) => computeField('SUM', String(f)));
-        // @ts-expect-error - TypeScript is not correctly inferring the types here
-        (aggs.avg ?? []).forEach((f: keyof Entity) => computeField('AVG', String(f)));
-        // @ts-expect-error - TypeScript is not correctly inferring the types here
-        (aggs.max ?? []).forEach((f: keyof Entity) => computeField('MAX', String(f)));
-        // @ts-expect-error - TypeScript is not correctly inferring the types here
-        (aggs.min ?? []).forEach((f: keyof Entity) => computeField('MIN', String(f)));
-
-        records.push(out);
-      });
-    }
-
-    return records.map((r) => AggregateBuilder.convertToAggregateResponse([r])[0]);
+    // Compute aggregates in memory so the implementation stays database-agnostic
+    return AggregateBuilder.computeAggregates(rows, aggregate).map(
+      (record) => AggregateBuilder.convertToAggregateResponse<Entity>([record])[0],
+    );
   }
 
   async count(filter: Filter<Entity>): Promise<number> {
-    const { filterQuery } = this.filterQueryBuilder.buildFindOptions({ filter } as Query<Entity>);
-    const em = this.repo.getEntityManager();
-    let where: FilterQuery<Entity> | undefined = filterQuery as FilterQuery<Entity> | undefined;
-    if (this.useSoftDelete) {
-      const deletedFilter = { deletedAt: null } as FilterQuery<Entity>;
-      where = where ? ({ $and: [where, deletedFilter] } as FilterQuery<Entity>) : deletedFilter;
-    }
-    return em.count(this.EntityClass, where ?? {});
+    return this.em.count(this.EntityClass, this.buildWhereFromFilter(filter));
   }
 
   /**
@@ -316,10 +194,7 @@ export class MikroOrmQueryService<Entity extends object>
    * @param id - The id of the record to find.
    */
   async findById(id: string | number, opts?: FindByIdOptions<Entity>): Promise<Entity | undefined> {
-    const metadata = this.em
-      .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
-    const primaryKey = metadata.primaryKeys[0] as keyof Entity;
+    const primaryKey = this.primaryKey as keyof Entity;
     let where: FilterQuery<Entity> = { [primaryKey]: id } as FilterQuery<Entity>;
     if (opts?.filter) {
       const whereBuilder = new WhereBuilder<Entity>();
@@ -403,15 +278,11 @@ export class MikroOrmQueryService<Entity extends object>
     update: DeepPartial<Entity>,
     opts?: UpdateOneOptions<Entity>,
   ): Promise<Entity> {
-    const data = 'toPOJO' in wrap(update) ? wrap(update).toPOJO() : update;
-
-    const dateWithClearUndefined = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    ) as DeepPartial<Entity>;
-    this.ensureIdIsNotPresent(dateWithClearUndefined);
+    const data = this.toUpdatePayload(update);
+    this.ensureIdIsNotPresent(data);
     const entity = await this.getById(id, opts);
 
-    wrap(entity).assign(dateWithClearUndefined as unknown as Partial<Entity> as any);
+    this.assignPatch(entity, data as Record<string, unknown>);
     await this.repo.getEntityManager().flush();
     return entity;
   }
@@ -433,24 +304,17 @@ export class MikroOrmQueryService<Entity extends object>
     update: DeepPartial<Entity>,
     filter: Filter<Entity>,
   ): Promise<UpdateManyResponse> {
-    const data = 'toPOJO' in wrap(update) ? wrap(update).toPOJO() : update;
-
-    const dateWithClearUndefined = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined),
-    ) as DeepPartial<Entity>;
     this.ensureIdIsNotPresent(update);
+    const data = this.toUpdatePayload(update);
 
-    // Get entities matching the filter
-    const entities = await this.query({ filter });
+    const updatedCount = await this.em.nativeUpdate(
+      this.EntityClass,
+      this.buildWhereFromFilter(filter),
+      data as EntityData<Entity>,
+    );
+    this.evictManagedEntities();
 
-    // Update each entity
-    for (const entity of entities) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      wrap(entity).assign(dateWithClearUndefined as any);
-    }
-
-    await this.repo.getEntityManager().flush();
-    return { updatedCount: entities.length };
+    return { updatedCount };
   }
 
   /**
@@ -470,8 +334,7 @@ export class MikroOrmQueryService<Entity extends object>
     const em = this.repo.getEntityManager();
     if (this.useSoftDelete) {
       // For soft delete, set the deletedAt field
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      wrap(entity).assign({ deletedAt: new Date() } as any);
+      this.assignPatch(entity, { deletedAt: new Date() });
       await em.flush();
     } else {
       await em.remove(entity).flush();
@@ -493,22 +356,14 @@ export class MikroOrmQueryService<Entity extends object>
    * @param filter - A `Filter` to find records to delete.
    */
   async deleteMany(filter: Filter<Entity>): Promise<DeleteManyResponse> {
-    const entities = await this.query({ filter });
-    const em = this.repo.getEntityManager();
+    const where = this.buildWhereFromFilter(filter);
 
-    if (this.useSoftDelete) {
-      for (const entity of entities) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wrap(entity).assign({ deletedAt: new Date() } as any);
-      }
-    } else {
-      for (const entity of entities) {
-        em.remove(entity);
-      }
-    }
+    const deletedCount = this.useSoftDelete
+      ? await this.em.nativeUpdate(this.EntityClass, where, this.softDeletePayload(new Date()))
+      : await this.em.nativeDelete(this.EntityClass, where);
+    this.evictManagedEntities();
 
-    await em.flush();
-    return { deletedCount: entities.length };
+    return { deletedCount };
   }
 
   /**
@@ -527,8 +382,7 @@ export class MikroOrmQueryService<Entity extends object>
     this.ensureSoftDeleteEnabled();
     // When restoring, we need to find soft-deleted entities, so bypass filters
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
-    const primaryKey = metadata.primaryKeys[0] as keyof Entity;
+    const primaryKey = this.primaryKey as keyof Entity;
 
     let whereClause: FilterQuery<Entity> = {
       [primaryKey]: id,
@@ -548,8 +402,7 @@ export class MikroOrmQueryService<Entity extends object>
     if (!entity) {
       throw new NotFoundException(`Unable to find ${this.EntityClass.name} with id: ${id}`);
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wrap(entity).assign({ deletedAt: null } as any);
+    this.assignPatch(entity, { deletedAt: null });
     await em.flush();
     return entity;
   }
@@ -569,65 +422,100 @@ export class MikroOrmQueryService<Entity extends object>
    */
   async restoreMany(filter: Filter<Entity>): Promise<UpdateManyResponse> {
     this.ensureSoftDeleteEnabled();
-    // When restoring, we need to find soft-deleted entities, so bypass filters
-    const em = this.repo.getEntityManager();
     const whereBuilder = new WhereBuilder<Entity>();
-    const whereClause = whereBuilder.build(filter);
-    const entities = await em.find(this.EntityClass, whereClause as FilterQuery<Entity>, {
-      filters: false,
-    });
+    const whereClause = whereBuilder.build(filter) as FilterQuery<Entity>;
 
-    for (const entity of entities) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      wrap(entity).assign({ deletedAt: null } as any);
-    }
+    // When restoring, we need to find soft-deleted entities, so bypass filters
+    const updatedCount = await this.em.nativeUpdate(
+      this.EntityClass,
+      whereClause,
+      this.softDeletePayload(null),
+      { filters: false },
+    );
+    this.evictManagedEntities();
 
-    await em.flush();
-    return { updatedCount: entities.length };
+    return { updatedCount };
   }
 
   private get em() {
     return this.repo.getEntityManager();
   }
 
-  private async ensureIsEntityAndDoesNotExist(e: DeepPartial<Entity>): Promise<Entity> {
-    if (!(e instanceof this.EntityClass)) {
-      const entity = this.em.create(
-        this.repo.getEntityName() as unknown as EntityName<any>,
-        e as RequiredEntityData<Entity>,
-      );
-      return this.ensureEntityDoesNotExist(entity as Entity);
-    }
-    return this.ensureEntityDoesNotExist(e);
+  private get primaryKey(): string {
+    return this.metadata.primaryKeys[0];
   }
 
-  private async ensureEntityDoesNotExist(e: Entity): Promise<Entity> {
-    const metadata = this.em
-      .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
-    const primaryKey = metadata.primaryKeys[0];
-    const id = (e as Record<string, unknown>)[primaryKey];
+  /**
+   * The `deletedAt` write that flags a row as soft deleted, or clears the flag when restoring.
+   *
+   * `Entity` is only known to be an object here, so the soft delete column cannot be proven to
+   * exist on it - {@link useSoftDelete} is the caller's promise that it does.
+   */
+  private softDeletePayload(deletedAt: Date | null): EntityData<Entity> {
+    return { deletedAt } as unknown as EntityData<Entity>;
+  }
 
-    if (id) {
-      // Clear the EM to avoid finding stale cached entities after truncate
-      this.em.clear();
-      const found = await this.repo.findOne({
-        [primaryKey]: id,
-      } as FilterQuery<Entity>);
-      if (found) {
-        throw new Error('Entity already exists');
+  /**
+   * Strips the keys an update should not carry: `undefined` values, which `assign` would otherwise
+   * write as `null`, and the MikroORM internals a managed entity drags along.
+   */
+  private toUpdatePayload(update: DeepPartial<Entity>): DeepPartial<Entity> {
+    const data = 'toPOJO' in wrap(update) ? wrap(update).toPOJO() : update;
+    return Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined),
+    ) as DeepPartial<Entity>;
+  }
+
+  /**
+   * Detaches the managed instances of this entity type from the identity map.
+   *
+   * `nativeUpdate`/`nativeDelete` write straight to the database without going through the unit of
+   * work, so whatever the identity map still holds for this entity type describes the rows as they
+   * looked *before* the statement ran, and a later read would serve those stale instances. Only
+   * this entity type is evicted, so anything else the caller has in flight survives - which is what
+   * the previous `em.clear()` could not promise.
+   */
+  private evictManagedEntities(): void {
+    const uow = this.em.getUnitOfWork();
+    for (const managed of uow.getIdentityMap().values()) {
+      if (managed instanceof this.EntityClass) {
+        uow.unsetIdentity(managed);
       }
+    }
+  }
+
+  private async ensureIsEntityAndDoesNotExist(e: DeepPartial<Entity>): Promise<Entity> {
+    // The lookup runs against the incoming payload, before `em.create()` can register the new
+    // entity: once it is in the identity map the lookup would find the very row we are about to
+    // insert and report it as a conflict.
+    await this.ensureIdIsFree(e as Record<string, unknown>);
+
+    if (!(e instanceof this.EntityClass)) {
+      return this.em.create(this.EntityClass, e as RequiredEntityData<Entity>) as Entity;
     }
     return e;
   }
 
-  private ensureIdIsNotPresent(e: DeepPartial<Entity>): void {
-    const metadata = this.em
-      .getMetadata()
-      .get(this.repo.getEntityName() as unknown as EntityName<any>);
-    const primaryKey = metadata.primaryKeys[0];
+  private async ensureIdIsFree(payload: Record<string, unknown>): Promise<void> {
+    const primaryKey = this.primaryKey;
+    const id = payload[primaryKey];
+    if (!id) {
+      return;
+    }
 
-    if ((e as Record<string, unknown>)[primaryKey]) {
+    // The check runs on a fork so it can never observe - nor disturb - the caller's unit of work:
+    // a fork starts with an empty identity map, so the row has to come from the database, and
+    // nothing pending on the caller's EntityManager is flushed or detached to get it.
+    const found = await this.em
+      .fork({ clear: true })
+      .findOne(this.EntityClass, { [primaryKey]: id } as FilterQuery<Entity>);
+    if (found) {
+      throw new Error('Entity already exists');
+    }
+  }
+
+  private ensureIdIsNotPresent(e: DeepPartial<Entity>): void {
+    if ((e as Record<string, unknown>)[this.primaryKey]) {
       throw new Error('Id cannot be specified when updating');
     }
   }

@@ -3,15 +3,16 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import {
   EntityData,
   EntityFactory,
+  EntityName,
   EntityProperty,
   Hydrator,
   MikroORM,
-  Options,
+  Primary,
   Reference,
   ref,
 } from '@mikro-orm/core';
-import { MongoDriver } from '@mikro-orm/mongodb';
-import { SqliteDriver } from '@mikro-orm/sqlite';
+import { defineConfig as defineMongoConfig } from '@mikro-orm/mongodb';
+import { defineConfig as defineSqliteConfig, SqliteDriver } from '@mikro-orm/sqlite';
 
 import {
   RelationOfTestRelationEntity,
@@ -23,7 +24,7 @@ import { TestRelation, TestRelationSchema } from './test-relation.entity';
 import { TestSoftDeleteEntity, TestSoftDeleteSchema } from './test-soft-delete.entity';
 import { TestEntity, TestSchema } from './test.entity';
 
-export const CONNECTION_OPTIONS: Options<SqliteDriver> = {
+export const CONNECTION_OPTIONS = defineSqliteConfig({
   driver: SqliteDriver,
   dbName: ':memory:',
   entities: [
@@ -35,9 +36,18 @@ export const CONNECTION_OPTIONS: Options<SqliteDriver> = {
   ],
   allowGlobalContext: true,
   debug: true,
-};
+});
 
-let orm: MikroORM<any>;
+/** The schemas are what the not-managed suite actually discovers, unlike CONNECTION_OPTIONS. */
+const SCHEMAS = [
+  TestSchema,
+  TestSoftDeleteSchema,
+  TestRelationSchema,
+  TestEntityRelationSchema,
+  RelationOfTestRelationSchema,
+];
+
+let orm: MikroORM;
 let mongod: MongoMemoryServer | undefined;
 
 export class CustomHydrator extends Hydrator {
@@ -87,7 +97,11 @@ export class CustomHydrator extends Hydrator {
     newEntity?: boolean,
     convertCustomTypes?: boolean,
   ): void {
-    const entityRef = entity as any;
+    // the not-managed entities keep their state under a `props` bag the schema does not declare,
+    // plus `_`-prefixed backing fields behind their getters - neither is visible on the entity type
+    const entityRef = entity as unknown as Record<string, unknown> & {
+      props: Record<string, unknown>;
+    };
     if (!entityRef.props) {
       entityRef.props = {};
     }
@@ -120,7 +134,7 @@ export class CustomHydrator extends Hydrator {
     }
 
     if (!CustomHydrator.referenceIdPatched) {
-      const proto = Reference.prototype as Record<string, unknown>;
+      const proto = Reference.prototype as unknown as Record<string, unknown>;
       if (!Object.getOwnPropertyDescriptor(proto, 'id')) {
         Object.defineProperty(proto, 'id', {
           get() {
@@ -150,7 +164,8 @@ export class CustomHydrator extends Hydrator {
     const rawValue = data[prop.name as keyof EntityData<T>];
     const embeddedProps = (prop as { embeddedProps?: Record<string, EntityProperty<T>> })
       .embeddedProps;
-    let val = rawValue as any;
+    // the hydrated value passes through several shapes here (raw column, embeddable, reference)
+    let val: unknown = rawValue;
 
     if (rawValue === undefined && embeddedProps) {
       const embeddedData: Record<string, unknown> = {};
@@ -168,29 +183,44 @@ export class CustomHydrator extends Hydrator {
         return;
       }
       const embeddableCtor =
-        (prop as { embeddable?: new (...args: any[]) => unknown; type?: any }).embeddable ??
-        prop.type;
+        (prop as unknown as { embeddable?: new (data: Record<string, unknown>) => unknown })
+          .embeddable ?? prop.type;
       if (typeof embeddableCtor === 'function') {
         val = new embeddableCtor(embeddedData);
       } else {
-        val = factory.createEmbeddable(embeddableCtor, embeddedData as EntityData<object>, {
-          newEntity,
-          convertCustomTypes,
-        });
+        val = factory.createEmbeddable(
+          embeddableCtor as unknown as EntityName<object>,
+          embeddedData as EntityData<object>,
+          { newEntity, convertCustomTypes },
+        );
       }
     } else if (rawValue === undefined) {
       return;
     }
     if (val !== null && val !== undefined) {
       if (prop.kind === 'm:1' || prop.kind === '1:1') {
-        const targetType = prop.targetMeta?.className || prop.type;
-        if (!val.__entity && typeof val !== 'object') {
-          val = factory.createReference(targetType, val, { merge: true, convertCustomTypes });
-        } else if (typeof val === 'object' && !val.__entity && (val.id || val._id)) {
-          val = factory.createReference(targetType, val.id || val._id, {
+        // the target is only known by class name at this point, which the factory resolves
+        const targetType = (prop.targetMeta?.className ||
+          prop.type) as unknown as EntityName<object>;
+        const candidate = val as { __entity?: unknown; id?: unknown; _id?: unknown };
+        if (!candidate.__entity && typeof val !== 'object') {
+          val = factory.createReference(targetType, val as Primary<object>, {
             merge: true,
             convertCustomTypes,
           });
+        } else if (
+          typeof val === 'object' &&
+          !candidate.__entity &&
+          (candidate.id || candidate._id)
+        ) {
+          val = factory.createReference(
+            targetType,
+            (candidate.id ?? candidate._id) as Primary<object>,
+            {
+              merge: true,
+              convertCustomTypes,
+            },
+          );
         }
       }
     }
@@ -228,56 +258,43 @@ export class CustomHydrator extends Hydrator {
   }
 }
 
-export async function createTestConnection(): Promise<MikroORM<any>> {
+export async function createTestConnection(): Promise<MikroORM> {
   const driver = process.env.TEST_DRIVER ?? 'sqlite';
 
   if (driver === 'mongo') {
     mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    const opts: Options<MongoDriver> = {
-      hydrator: CustomHydrator,
-      driver: MongoDriver,
-      propagationOnPrototype: false,
-      clientUrl: uri,
-      entities: [
-        TestSchema,
-        TestSoftDeleteSchema,
-        TestRelationSchema,
-        TestEntityRelationSchema,
-        RelationOfTestRelationSchema,
-      ],
-      allowGlobalContext: true,
-      debug: false,
-    } as Options<MongoDriver>;
-    orm = await MikroORM.init(opts as any);
+    orm = await MikroORM.init(
+      defineMongoConfig({
+        hydrator: CustomHydrator,
+        propagationOnPrototype: false,
+        clientUrl: mongod.getUri(),
+        entities: SCHEMAS,
+        allowGlobalContext: true,
+        debug: false,
+      }),
+    );
     return orm;
   }
 
-  const CONNECTION_OPTIONS: Options<SqliteDriver> = {
-    hydrator: CustomHydrator,
-    driver: SqliteDriver,
-    dbName: ':memory:',
-    propagationOnPrototype: false,
-    entities: [
-      TestSchema,
-      TestSoftDeleteSchema,
-      TestRelationSchema,
-      TestEntityRelationSchema,
-      RelationOfTestRelationSchema,
-    ],
-    allowGlobalContext: true,
-    debug: false,
-  };
-
-  orm = await MikroORM.init(CONNECTION_OPTIONS as any);
-  await orm.schema.createSchema();
+  orm = await MikroORM.init(
+    defineSqliteConfig({
+      hydrator: CustomHydrator,
+      driver: SqliteDriver,
+      dbName: ':memory:',
+      propagationOnPrototype: false,
+      entities: SCHEMAS,
+      allowGlobalContext: true,
+      debug: false,
+    }),
+  );
+  await orm.schema.create();
   return orm;
 }
 
 export async function closeTestConnection(): Promise<void> {
   if (orm) {
     await orm.close(true);
-    orm = undefined as unknown as MikroORM<any>;
+    orm = undefined as unknown as MikroORM;
   }
   if (mongod) {
     await mongod.stop();
@@ -285,18 +302,9 @@ export async function closeTestConnection(): Promise<void> {
   }
 }
 
-export function getTestConnection(): MikroORM<any> {
+export function getTestConnection(): MikroORM {
   return orm;
 }
-
-const _tables = [
-  'test_entity',
-  'relation_of_test_relation_entity',
-  'test_relation',
-  'test_entity_relation_entity',
-  'test_soft_delete_entity',
-  'test_entity_many_test_relations',
-];
 
 export const truncate = async (connection: MikroORM = orm): Promise<void> => {
   const em = connection.em.fork();

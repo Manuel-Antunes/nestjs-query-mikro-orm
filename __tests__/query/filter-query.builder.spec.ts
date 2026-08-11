@@ -52,7 +52,7 @@ describe('FilterQueryBuilder', (): void => {
       const metadata = qb.repo
         .getEntityManager()
         .getMetadata()
-        .get(qb.repo.getEntityName() as unknown as EntityName<any>);
+        .get(qb.repo.getEntityName() as unknown as EntityName<TestEntity>);
       expect(qb.getReferencedRelationsRecursive(metadata, complexQuery)).toEqual({
         oneTestRelation: { relationOfTestRelation: {} },
       });
@@ -63,7 +63,7 @@ describe('FilterQueryBuilder', (): void => {
       const metadata = qb.repo
         .getEntityManager()
         .getMetadata()
-        .get(qb.repo.getEntityName() as unknown as EntityName<any>);
+        .get(qb.repo.getEntityName() as unknown as EntityName<TestEntity>);
       expect(
         qb.getReferencedRelationsRecursive(metadata, {
           and: [
@@ -115,7 +115,8 @@ describe('FilterQueryBuilder', (): void => {
       it('should apply filter when provided', () => {
         const qb = getEntityQueryBuilder(TestEntity);
         const result = qb.buildFindOptions({ filter: { stringType: { eq: 'foo' } } });
-        expect((result.filterQuery as any).stringType.$eq).toBe('foo');
+        const where = result.filterQuery as Record<string, { $eq?: unknown }>;
+        expect(where.stringType.$eq).toBe('foo');
       });
     });
 
@@ -147,7 +148,7 @@ describe('FilterQueryBuilder', (): void => {
         const result = qb.buildFindOptions({
           sorting: [{ field: 'numberType', direction: SortDirection.ASC }],
         });
-        expect((result.options?.orderBy as any).numberType).toBe('asc');
+        expect(result.options?.orderBy?.numberType).toBe('asc');
       });
 
       it('should apply ASC NULLS_FIRST sorting', () => {
@@ -161,7 +162,7 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls first');
+        expect(String(result.options?.orderBy?.numberType).toLowerCase()).toContain('nulls first');
       });
 
       it('should apply ASC NULLS_LAST sorting', () => {
@@ -175,7 +176,7 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls last');
+        expect(String(result.options?.orderBy?.numberType).toLowerCase()).toContain('nulls last');
       });
 
       it('should apply DESC sorting', () => {
@@ -183,7 +184,7 @@ describe('FilterQueryBuilder', (): void => {
         const result = qb.buildFindOptions({
           sorting: [{ field: 'numberType', direction: SortDirection.DESC }],
         });
-        expect((result.options?.orderBy as any).numberType).toBe('desc');
+        expect(result.options?.orderBy?.numberType).toBe('desc');
       });
 
       it('should apply DESC NULLS_FIRST sorting', () => {
@@ -197,7 +198,7 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls first');
+        expect(String(result.options?.orderBy?.numberType).toLowerCase()).toContain('nulls first');
       });
 
       it('should apply DESC NULLS_LAST sorting', () => {
@@ -211,7 +212,7 @@ describe('FilterQueryBuilder', (): void => {
             },
           ],
         });
-        expect((result.options?.orderBy as any).numberType.toLowerCase()).toContain('nulls last');
+        expect(String(result.options?.orderBy?.numberType).toLowerCase()).toContain('nulls last');
       });
 
       it('should apply multiple sorts', () => {

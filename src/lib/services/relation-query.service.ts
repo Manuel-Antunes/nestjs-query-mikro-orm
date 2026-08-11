@@ -1,5 +1,7 @@
 import type {
   Collection,
+  EntityData,
+  FromEntityType,
   EntityName,
   EntityProperty,
   EntityRepository,
@@ -19,13 +21,14 @@ import type {
 } from '@ptc-org/nestjs-query-core';
 import { AssemblerFactory } from '@ptc-org/nestjs-query-core';
 
-import type { FilterQueryBuilder } from '../query/index';
+import type { FilterQueryBuilder, FindWhere } from '../query/index';
 import { AggregateBuilder, RelationQueryBuilder } from '../query/index';
 
 interface RelationMetadata {
   kind: 'm:1' | '1:m' | '1:1' | 'm:n';
   type: string;
-  entity: () => EntityName<unknown>;
+  /** Resolves the entity on the far side of the relation. */
+  entity: () => EntityName<object>;
   mappedBy?: string;
 }
 
@@ -254,8 +257,7 @@ export abstract class RelationQueryService<Entity extends object> {
 
     if (meta.kind === '1:m' && meta.mappedBy) {
       for (const relation of relations) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wrap(relation as any).assign({ [meta.mappedBy]: entity } as any);
+        this.assignProperty(relation, meta.mappedBy, entity);
       }
       await this.repo.getEntityManager().flush();
       return entity;
@@ -307,19 +309,17 @@ export abstract class RelationQueryService<Entity extends object> {
         entity,
         {} as Query<Relation>,
       );
-      const nextSet = new Set(relations.map((r) => (wrap(r as any) as any).getPrimaryKey()));
+      const nextSet = new Set(relations.map((r) => wrap(r, true).getPrimaryKey()));
 
       for (const currentRelation of currentRelations) {
-        const currentPk = (wrap(currentRelation as any) as any).getPrimaryKey();
+        const currentPk = wrap(currentRelation, true).getPrimaryKey();
         if (!nextSet.has(currentPk)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          wrap(currentRelation as any).assign({ [meta.mappedBy]: null } as any);
+          this.assignProperty(currentRelation, meta.mappedBy, null);
         }
       }
 
       for (const relation of relations) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wrap(relation as any).assign({ [meta.mappedBy]: entity } as any);
+        this.assignProperty(relation, meta.mappedBy, entity);
       }
 
       await this.repo.getEntityManager().flush();
@@ -361,8 +361,7 @@ export abstract class RelationQueryService<Entity extends object> {
     }
 
     // Set the relation directly
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wrap(entity).assign({ [relationName]: relation } as any);
+    this.assignProperty(entity, relationName, relation);
     await this.repo.getEntityManager().flush();
 
     return entity;
@@ -394,8 +393,7 @@ export abstract class RelationQueryService<Entity extends object> {
 
     if (meta.kind === '1:m' && meta.mappedBy) {
       for (const relation of relations) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wrap(relation as any).assign({ [meta.mappedBy]: null } as any);
+        this.assignProperty(relation, meta.mappedBy, null);
       }
       await this.repo.getEntityManager().flush();
       return entity;
@@ -460,12 +458,10 @@ export abstract class RelationQueryService<Entity extends object> {
         assignData[relationName] = null;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      wrap(entity).assign(assignData as any);
+      this.assignPatch(entity, assignData);
     } else {
       if (meta.kind === '1:m' && meta.mappedBy) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        wrap(relation as any).assign({ [meta.mappedBy]: null } as any);
+        this.assignProperty(relation, meta.mappedBy, null);
         await this.repo.getEntityManager().flush();
         return entity;
       }
@@ -627,9 +623,29 @@ export abstract class RelationQueryService<Entity extends object> {
     return RelationClass === relationEntity || RelationClass.name === relationEntity.name;
   }
 
+  /**
+   * Writes a single, dynamically named property onto a managed entity.
+   *
+   * The property is a `mappedBy` or a relation name resolved from metadata at runtime, so it
+   * cannot be proven to be a key of the target; `EntityData` is the shape `assign` accepts for
+   * exactly this kind of partial write.
+   */
+  protected assignProperty<T extends object>(target: T, property: string, value: unknown): void {
+    this.assignPatch(target, { [property]: value });
+  }
+
+  /**
+   * Writes a patch whose keys were resolved from metadata at runtime onto a managed entity.
+   */
+  protected assignPatch<T extends object>(target: T, patch: Record<string, unknown>): void {
+    wrap(target).assign(patch as EntityData<FromEntityType<T>>);
+  }
+
   private getRelationMeta(relationName: string): RelationMetadata {
     const em = this.repo.getEntityManager();
-    const metadata = em.getMetadata().get(this.repo.getEntityName() as unknown as EntityName<any>);
+    const metadata = em
+      .getMetadata()
+      .get(this.repo.getEntityName() as unknown as EntityName<Entity>);
     const relationMeta = metadata.relations.find((r: EntityProperty) => r.name === relationName);
     if (!relationMeta) {
       throw new Error(`Unable to find relation ${relationName} on ${this.EntityClass.name}`);
@@ -637,7 +653,9 @@ export abstract class RelationQueryService<Entity extends object> {
     return {
       kind: relationMeta.kind as 'm:1' | '1:m' | '1:1' | 'm:n',
       type: relationMeta.type,
-      entity: relationMeta.entity,
+      // the property types this accessor against the owning entity, but what it resolves is the
+      // relation's target - which is only known by name at this point
+      entity: relationMeta.entity as () => EntityName<object>,
       mappedBy: relationMeta.mappedBy,
     };
   }
@@ -670,10 +688,10 @@ export abstract class RelationQueryService<Entity extends object> {
       ) as FilterQuery<Relation>;
       return em.find(RelationEntity, {
         $and: [idFilter, additionalFilter],
-      } as any);
+      } as FindWhere<Relation>);
     }
 
-    return em.find(RelationEntity, idFilter as any);
+    return em.find(RelationEntity, idFilter as FindWhere<Relation>);
   }
 
   private foundAllRelations<Relation>(

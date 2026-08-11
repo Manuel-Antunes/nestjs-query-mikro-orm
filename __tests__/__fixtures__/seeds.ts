@@ -6,7 +6,40 @@ import { TestRelation } from './test-relation.entity';
 import { TestSoftDeleteEntity } from './test-soft-delete.entity';
 import { TestEntity } from './test.entity';
 
-export const TEST_ENTITIES: Partial<TestEntity>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
+/**
+ * The columns a seed row carries.
+ *
+ * `Partial<Entity>` would be the loose way to spell this, but it makes every seeded column
+ * `| undefined` at the point of use, which pushes non-null assertions into every test that reads
+ * one. Picking the columns keeps them required while still leaving out the collections and
+ * relation references the seeder wires up afterwards.
+ */
+export type TestEntitySeed = Pick<
+  TestEntity,
+  'testEntityPk' | 'stringType' | 'boolType' | 'numberType' | 'dateType'
+>;
+
+export type TestSoftDeleteEntitySeed = Pick<TestSoftDeleteEntity, 'testEntityPk' | 'stringType'>;
+
+export type TestRelationSeed = Pick<
+  TestRelation,
+  'testRelationPk' | 'relationName' | 'testEntityId' | 'uniDirectionalTestEntityId'
+>;
+
+export type RelationOfTestRelationSeed = Pick<
+  RelationOfTestRelationEntity,
+  'id' | 'relationName' | 'testRelationId'
+>;
+
+/**
+ * The seeded rows, typed as the entities they stand in for.
+ *
+ * Every seeded column is always present, so `Partial<Entity>` would only push `| undefined` into
+ * every test that reads one. The collections and back-references stay absent until the seeder
+ * wires them up, which is why this is a cast at the definition instead of a construction: the APIs
+ * under test take entities and only ever read the seeded columns.
+ */
+export const TEST_ENTITIES: TestEntity[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
   const testEntityPk = `test-entity-${i}`;
   return {
     testEntityPk,
@@ -15,9 +48,17 @@ export const TEST_ENTITIES: Partial<TestEntity>[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 
     numberType: i,
     stringType: `foo${i}`,
   };
-});
+}) as unknown as TestEntity[];
 
-export const TEST_SOFT_DELETE_ENTITIES: Partial<TestSoftDeleteEntity>[] = [
+/**
+ * The seeded rows, typed as the entities they stand in for.
+ *
+ * Every seeded column is always present, so `Partial<Entity>` would only push `| undefined` into
+ * every test that reads one. The collections and back-references stay absent until the seeder
+ * wires them up, which is why this is a cast at the definition instead of a construction: the APIs
+ * under test take entities and only ever read the seeded columns.
+ */
+export const TEST_SOFT_DELETE_ENTITIES: TestSoftDeleteEntity[] = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
 ].map((i) => {
   const testEntityPk = `test-entity-${i}`;
@@ -25,9 +66,17 @@ export const TEST_SOFT_DELETE_ENTITIES: Partial<TestSoftDeleteEntity>[] = [
     testEntityPk,
     stringType: `foo${i}`,
   };
-});
+}) as unknown as TestSoftDeleteEntity[];
 
-export const TEST_RELATIONS: Partial<TestRelation>[] = (TEST_ENTITIES as TestEntity[]).reduce(
+/**
+ * The seeded rows, typed as the entities they stand in for.
+ *
+ * Every seeded column is always present, so `Partial<Entity>` would only push `| undefined` into
+ * every test that reads one. The collections and back-references stay absent until the seeder
+ * wires them up, which is why this is a cast at the definition instead of a construction: the APIs
+ * under test take entities and only ever read the seeded columns.
+ */
+export const TEST_RELATIONS: TestRelation[] = TEST_ENTITIES.reduce(
   (relations, te) => [
     ...relations,
     {
@@ -49,16 +98,24 @@ export const TEST_RELATIONS: Partial<TestRelation>[] = (TEST_ENTITIES as TestEnt
       uniDirectionalTestEntityId: te.testEntityPk,
     },
   ],
-  [] as Partial<TestRelation>[],
-);
+  [] as TestRelationSeed[],
+) as unknown as TestRelation[];
 
-export const TEST_RELATIONS_OF_RELATION = (TEST_RELATIONS as TestRelation[]).map<
-  Partial<RelationOfTestRelationEntity>
->((testRelation) => ({
-  relationName: `test-relation-of-${testRelation.relationName}`,
-  id: `relation-of-test-relation-${testRelation.relationName}`,
-  testRelationId: testRelation.testRelationPk,
-})) as Partial<RelationOfTestRelationEntity>[];
+/**
+ * The seeded rows, typed as the entities they stand in for.
+ *
+ * Every seeded column is always present, so `Partial<Entity>` would only push `| undefined` into
+ * every test that reads one. The collections and back-references stay absent until the seeder
+ * wires them up, which is why this is a cast at the definition instead of a construction: the APIs
+ * under test take entities and only ever read the seeded columns.
+ */
+export const TEST_RELATIONS_OF_RELATION: RelationOfTestRelationEntity[] = TEST_RELATIONS.map(
+  (testRelation) => ({
+    relationName: `test-relation-of-${testRelation.relationName}`,
+    id: `relation-of-test-relation-${testRelation.relationName}`,
+    testRelationId: testRelation.testRelationPk,
+  }),
+) as unknown as RelationOfTestRelationEntity[];
 
 export const seed = async (orm: MikroORM = getTestConnection()): Promise<void> => {
   const em = orm.em.fork();

@@ -1,8 +1,7 @@
-import type { Options } from '@mikro-orm/core';
 import { MikroORM } from '@mikro-orm/core';
-import { SqliteDriver } from '@mikro-orm/sqlite';
+import { defineConfig as defineSqliteConfig, SqliteDriver } from '@mikro-orm/sqlite';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MongoDriver } from '@mikro-orm/mongodb';
+import { defineConfig as defineMongoConfig } from '@mikro-orm/mongodb';
 
 import { RelationOfTestRelationEntity } from './relation-of-test-relation.entity';
 import { seed } from './seeds';
@@ -11,62 +10,43 @@ import { TestRelation } from './test-relation.entity';
 import { TestSoftDeleteEntity } from './test-soft-delete.entity';
 import { TestEntity } from './test.entity';
 
-export const CONNECTION_OPTIONS: Options<SqliteDriver> = {
+const ENTITIES = [
+  TestEntity,
+  TestSoftDeleteEntity,
+  TestRelation,
+  TestEntityRelationEntity,
+  RelationOfTestRelationEntity,
+];
+
+export const CONNECTION_OPTIONS = defineSqliteConfig({
   driver: SqliteDriver,
   dbName: ':memory:',
-  entities: [
-    TestEntity,
-    TestSoftDeleteEntity,
-    TestRelation,
-    TestEntityRelationEntity,
-    RelationOfTestRelationEntity,
-  ],
+  entities: ENTITIES,
   allowGlobalContext: true,
   debug: false,
-};
+});
 
-let orm: MikroORM<any>;
+let orm: MikroORM;
 let mongod: MongoMemoryServer | undefined;
 
-export async function createTestConnection(): Promise<MikroORM<any>> {
+export async function createTestConnection(): Promise<MikroORM> {
   const driver = process.env.TEST_DRIVER ?? 'sqlite';
 
   if (driver === 'mongo') {
     mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    const opts: Options<MongoDriver> = {
-      driver: MongoDriver,
-      clientUrl: uri,
-      dbName: 'test',
-      entities: [
-        TestEntity,
-        TestSoftDeleteEntity,
-        TestRelation,
-        TestEntityRelationEntity,
-        RelationOfTestRelationEntity,
-      ],
-      allowGlobalContext: true,
-      debug: false,
-    } as Options<MongoDriver>;
-    orm = await MikroORM.init(opts as any);
+    orm = await MikroORM.init(
+      defineMongoConfig({
+        clientUrl: mongod.getUri(),
+        dbName: 'test',
+        entities: ENTITIES,
+        allowGlobalContext: true,
+        debug: false,
+      }),
+    );
     return orm;
   }
 
-  const CONNECTION_OPTIONS: Options<SqliteDriver> = {
-    driver: SqliteDriver,
-    dbName: ':memory:',
-    entities: [
-      TestEntity,
-      TestSoftDeleteEntity,
-      TestRelation,
-      TestEntityRelationEntity,
-      RelationOfTestRelationEntity,
-    ],
-    allowGlobalContext: true,
-    debug: false,
-  };
-
-  orm = await MikroORM.init(CONNECTION_OPTIONS as any);
+  orm = await MikroORM.init(CONNECTION_OPTIONS);
   await orm.schema.create();
   return orm;
 }
@@ -74,7 +54,7 @@ export async function createTestConnection(): Promise<MikroORM<any>> {
 export async function closeTestConnection(): Promise<void> {
   if (orm) {
     await orm.close(true);
-    orm = undefined as unknown as MikroORM<any>;
+    orm = undefined as unknown as MikroORM;
   }
   if (mongod) {
     await mongod.stop();
@@ -82,18 +62,9 @@ export async function closeTestConnection(): Promise<void> {
   }
 }
 
-export function getTestConnection(): MikroORM<any> {
+export function getTestConnection(): MikroORM {
   return orm;
 }
-
-const _tables = [
-  'test_entity',
-  'relation_of_test_relation_entity',
-  'test_relation',
-  'test_entity_relation_entity',
-  'test_soft_delete_entity',
-  'test_entity_many_test_relations',
-];
 
 export const truncate = async (connection: MikroORM = orm): Promise<void> => {
   const em = connection.em.fork();

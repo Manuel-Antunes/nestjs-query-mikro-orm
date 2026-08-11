@@ -18,6 +18,8 @@ export default [
       '**/*.config.mjs',
       '**/*.config.cjs',
       '**/.lintstagedrc.cjs',
+      // scratch checkouts kept for reference, outside every tsconfig
+      'tmp/**',
     ],
   },
   {
@@ -59,7 +61,8 @@ export default [
       '@typescript-eslint/interface-name-prefix': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // `any` silently disabled the type checking that hid a real AggregateQuery bug; keep it out
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
