@@ -37,6 +37,7 @@ export async function createTestConnection(): Promise<MikroORM<any>> {
     const opts: Options<MongoDriver> = {
       driver: MongoDriver,
       clientUrl: uri,
+      dbName: 'test',
       entities: [
         TestEntity,
         TestSoftDeleteEntity,

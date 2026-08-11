@@ -9,12 +9,13 @@ import {
 } from '@mikro-orm/decorators/legacy';
 import { Exclude } from 'class-transformer';
 
+import { pkName } from './driver';
 import { TestEntityRelationEntity } from './test-entity-relation.entity';
 import { TestRelation } from './test-relation.entity';
 
 @Entity({ tableName: 'test_entity' })
 export class TestEntity {
-  @PrimaryKey({ name: 'test_entity_pk', type: 'string' })
+  @PrimaryKey({ name: pkName('test_entity_pk'), type: 'string' })
   testEntityPk!: string;
 
   @Property({ name: 'string_type', type: 'string' })

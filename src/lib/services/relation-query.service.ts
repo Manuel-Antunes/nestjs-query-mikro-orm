@@ -509,21 +509,20 @@ export abstract class RelationQueryService<Entity extends object> {
     const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler ? assembler.convertQuery(query) : query;
 
-    const results = new Map<Entity, Relation[]>();
+    // A single batched query loads the relation for every entity at once, instead of running
+    // one select per entity.
+    const batched = await relationQueryBuilder.batchSelectAndExecute(entities, convertedQuery);
 
-    // Process each entity and collect its relations
-    await Promise.all(
-      entities.map(async (entity) => {
-        const relations = await relationQueryBuilder.selectAndExecute(entity, convertedQuery);
-        const relationDtos = bypassAssembler
-          ? (relations as Relation[])
-          : await assembler!.convertToDTOs(relations);
-        // Only add to map if there are relations (undefined for entities with no relations)
-        if (relationDtos.length > 0) {
-          results.set(entity, relationDtos);
-        }
-      }),
-    );
+    const results = new Map<Entity, Relation[]>();
+    for (const [entity, relations] of batched) {
+      const relationDtos = bypassAssembler
+        ? (relations as Relation[])
+        : await assembler!.convertToDTOs(relations);
+      // Only add to map if there are relations (undefined for entities with no relations)
+      if (relationDtos.length > 0) {
+        results.set(entity, relationDtos);
+      }
+    }
 
     return results;
   }
@@ -549,22 +548,21 @@ export abstract class RelationQueryService<Entity extends object> {
     const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler.convertQuery({ filter });
 
-    const results = new Map<Entity, AggregateResponse<Relation>[]>();
-
-    await Promise.all(
-      entities.map(async (entity) => {
-        const rawAggregates = await relationQueryBuilder.aggregate(
-          entity,
-          convertedQuery,
-          assembler.convertAggregateQuery(aggregate),
-        );
-        const aggResponse = AggregateBuilder.convertToAggregateResponse(rawAggregates);
-        results.set(
-          entity,
-          aggResponse.map((agg) => assembler.convertAggregateResponse(agg)),
-        );
-      }),
+    // A single batched query feeds the aggregates for every entity.
+    const batched = await relationQueryBuilder.batchAggregate(
+      entities,
+      convertedQuery,
+      assembler.convertAggregateQuery(aggregate),
     );
+
+    const results = new Map<Entity, AggregateResponse<Relation>[]>();
+    batched.forEach((rawAggregates, entity) => {
+      const aggResponse = AggregateBuilder.convertToAggregateResponse(rawAggregates);
+      results.set(
+        entity,
+        aggResponse.map((agg) => assembler.convertAggregateResponse(agg)),
+      );
+    });
 
     return results;
   }
@@ -589,16 +587,8 @@ export abstract class RelationQueryService<Entity extends object> {
     const relationQueryBuilder = this.getRelationQueryBuilder<Relation>(relationName);
     const convertedQuery = assembler.convertQuery({ filter });
 
-    const results = new Map<Entity, number>();
-
-    await Promise.all(
-      entities.map(async (entity) => {
-        const count = await relationQueryBuilder.count(entity, convertedQuery);
-        results.set(entity, count);
-      }),
-    );
-
-    return results;
+    // Counts stay one aggregate per entity, see `batchCount` for why they are not batched.
+    return relationQueryBuilder.batchCount(entities, convertedQuery);
   }
 
   /**

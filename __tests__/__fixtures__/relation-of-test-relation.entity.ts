@@ -1,9 +1,10 @@
 import { Entity, ManyToOne, PrimaryKey, Property } from '@mikro-orm/decorators/legacy';
+import { pkName } from './driver';
 import { TestRelation } from './test-relation.entity';
 
 @Entity({ tableName: 'relation_of_test_relation_entity' })
 export class RelationOfTestRelationEntity {
-  @PrimaryKey({ name: 'test_relation_pk', type: 'string' })
+  @PrimaryKey({ name: pkName('test_relation_pk'), type: 'string' })
   id!: string;
 
   @Property({ name: 'relation_name', type: 'string' })
